@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
 # scripts/push-to-ecr.sh
-# Usage: ./scripts/push-to-ecr.sh <repository-name> <image-tag>
-# Example: ./scripts/push-to-ecr.sh my-lambda a3f5c12
+# Usage: ./scripts/push-to-ecr.sh <image-tag>
+# Example: ./scripts/push-to-ecr.sh $(git rev-parse --short HEAD)
 
 set -euo pipefail
 
-REPO_NAME=${1:?Usage: push-to-ecr.sh <repository-name> <image-tag>}
-IMAGE_TAG=${2:?Usage: push-to-ecr.sh <repository-name> <image-tag>}
-REGION=${AWS_REGION:-eu-west-2}
+IMAGE_TAG=${1:?Usage: push-to-ecr.sh <image-tag>}
+REPO_NAME="auth_lambda_ecr"
+REGION="eu-west-2"
 
-# Derive account ID and registry URL from AWS — no hardcoding needed
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 REGISTRY="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
 FULL_IMAGE="${REGISTRY}/${REPO_NAME}:${IMAGE_TAG}"

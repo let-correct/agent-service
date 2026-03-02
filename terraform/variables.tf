@@ -5,7 +5,7 @@
 variable "aws_region" {
   description = "AWS region to deploy into"
   type        = string
-  default     = "eu-west-2" # London — change to suit
+  default     = "eu-west-2"
 }
 
 variable "tags" {

@@ -20,7 +20,18 @@ aws ecr get-login-password --region "$REGION" \
 echo "Building ${FULL_IMAGE}..."
 docker buildx build \
   --platform linux/arm64 \
+  --provenance=false \
   --tag "$FULL_IMAGE" \
+  --push \
+  .
+
+FULL_IMAGE_LATEST="${REGISTRY}/${REPO_NAME}:latest"
+
+echo "Building ${FULL_IMAGE_LATEST}..."
+docker buildx build \
+  --platform linux/arm64 \
+  --provenance=false \
+  --tag "$FULL_IMAGE_LATEST" \
   --push \
   .
 

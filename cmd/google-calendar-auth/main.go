@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/aws/aws-lambda-go/lambda"
-	handler "github.com/troysnowden/let-correct-viewing/internal/google-calendar-auth"
+	"github.com/troysnowden/let-correct-viewing/internal/handler"
 )
 
 func main() {

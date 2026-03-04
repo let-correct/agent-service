@@ -24,6 +24,14 @@ type InitiateAuth struct {
 	states  oauth2.StateRepository
 }
 
+func NewInitiateAuth(clients map[oauth2.ProviderID]oauth2.Client, states oauth2.StateRepository) *InitiateAuth {
+	return &InitiateAuth{clients: clients, states: states}
+}
+
+func NewInitiateAuthCommand(provider oauth2.ProviderID) InitiateAuthCommand {
+	return InitiateAuthCommand{provider: provider}
+}
+
 func (h *InitiateAuth) Handle(ctx context.Context, cmd InitiateAuthCommand) (InitiateAuthResult, error) {
 	client, ok := h.clients[cmd.provider]
 	if !ok {

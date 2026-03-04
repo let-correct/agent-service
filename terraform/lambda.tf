@@ -13,12 +13,17 @@ resource "aws_lambda_function" "auth_lambda" {
   memory_size = 128
   timeout     = 30
 
-#   environment {
-#     variables = merge(
-#       { LOG_LEVEL = var.log_level },
-#       var.environment_variables
-#     )
-#   }
+  kms_key_arn = aws_kms_key.oauth_tokens.arn
+
+  environment {
+    variables = {
+      LOG_LEVEL            = var.log_level
+      STATE_TABLE_NAME     = aws_dynamodb_table.oauth_state.name
+      GOOGLE_CLIENT_ID     = var.google_client_id
+      GOOGLE_CLIENT_SECRET = var.google_client_secret
+      GOOGLE_REDIRECT_URL  = var.google_redirect_url
+    }
+  }
 
   logging_config {
     log_format = "JSON"
@@ -60,22 +65,31 @@ resource "aws_iam_role_policy_attachment" "auth_lambda_basic_execution" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-# Add any additional permissions your function needs here (S3, DynamoDB, SSM etc.)
-# resource "aws_iam_role_policy" "lambda_custom" {
-#   name = "auth-lambda-custom-policy"
-#   role = aws_iam_role.auth_lambda.id
+resource "aws_iam_role_policy" "auth_lambda_permissions" {
+  name = "auth-lambda-permissions"
+  role = aws_iam_role.auth_lambda.id
 
-#   policy = jsonencode({
-#     Version = "2012-10-17"
-#     Statement = [
-#       # {
-#       #   Effect   = "Allow"
-#       #   Action   = ["ssm:GetParameter"]
-#       #   Resource = "arn:aws:ssm:${var.aws_region}:*:parameter/${var.function_name}/*"
-#       # },
-#     ]
-#   })
-# }
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:PutItem", "dynamodb:GetItem"]
+        Resource = aws_dynamodb_table.oauth_tokens.arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:PutItem", "dynamodb:DeleteItem"]
+        Resource = aws_dynamodb_table.oauth_state.arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt", "kms:Encrypt", "kms:GenerateDataKey"]
+        Resource = aws_kms_key.oauth_tokens.arn
+      }
+    ]
+  })
+}
 
 ###############################################################################
 # CloudWatch Log Group

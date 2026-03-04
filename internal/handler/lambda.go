@@ -3,54 +3,56 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 
 	"github.com/aws/aws-lambda-go/events"
+	"github.com/troysnowden/let-correct-viewing/internal/application"
+	"github.com/troysnowden/let-correct-viewing/internal/domain/oauth2"
 )
 
-// Handler holds any dependencies your handler needs (DB clients, config, etc.)
 type Handler struct {
-	logger *slog.Logger
+	logger       *slog.Logger
+	initiateAuth *application.InitiateAuth
 }
 
-// New creates a new Handler with its dependencies.
-// Add any clients or config your handler needs as parameters here.
-func New(logger *slog.Logger) *Handler {
+func New(logger *slog.Logger, initiateAuth *application.InitiateAuth) *Handler {
 	return &Handler{
-		logger: logger,
+		logger:       logger,
+		initiateAuth: initiateAuth,
 	}
 }
 
-// Handle is the core Lambda handler function, called by main.go.
 func (h *Handler) Handle(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
 	h.logger.InfoContext(ctx, "received request",
 		"method", req.RequestContext.HTTP.Method,
 		"path", req.RequestContext.HTTP.Path,
 	)
 
-	switch req.RequestContext.HTTP.Method {
-	case http.MethodGet:
-		return h.handleGet(ctx, req)
+	switch req.RouteKey {
+	case "GET /auth/{provider}":
+		return h.handleInitiateAuth(ctx, req)
 	default:
-		return response(http.StatusMethodNotAllowed, map[string]string{
-			"error": "method not allowed",
-		})
+		return response(http.StatusNotFound, map[string]string{"error": "not found"})
 	}
 }
 
-func (h *Handler) handleGet(_ context.Context, req events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
-	name := req.QueryStringParameters["name"]
-	if name == "" {
-		name = "world"
+func (h *Handler) handleInitiateAuth(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
+	provider := oauth2.ProviderID(req.PathParameters["provider"])
+
+	result, err := h.initiateAuth.Handle(ctx, application.NewInitiateAuthCommand(provider))
+	if errors.Is(err, application.ErrUnsupportedProvider) {
+		return response(http.StatusBadRequest, map[string]string{"error": "unsupported provider"})
+	}
+	if err != nil {
+		h.logger.ErrorContext(ctx, "initiate auth failed", "error", err)
+		return response(http.StatusInternalServerError, map[string]string{"error": "internal error"})
 	}
 
-	return response(http.StatusOK, map[string]string{
-		"message": "Hello, " + name + "!",
-	})
+	return response(http.StatusOK, map[string]string{"url": result.URL})
 }
 
-// response is a helper to build an APIGatewayV2HTTPResponse with a JSON body.
 func response(statusCode int, body any) (events.APIGatewayV2HTTPResponse, error) {
 	b, err := json.Marshal(body)
 	if err != nil {

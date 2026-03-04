@@ -17,6 +17,10 @@ type Client struct {
 	httpClient   *http.Client
 }
 
+func NewClient(clientID, clientSecret, redirectURL string) *Client {
+	return &Client{clientID: clientID, clientSecret: clientSecret, redirectURL: redirectURL}
+}
+
 func (c *Client) config() *oauth2.Config {
 	return &oauth2.Config{
 		ClientID:     c.clientID,

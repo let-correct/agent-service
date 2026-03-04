@@ -10,7 +10,7 @@ RUN go mod download
 # Copy source and build a statically linked binary for Lambda
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=arm64 \
-    go build -ldflags="-s -w" -o bootstrap ./cmd/google-calendar-auth
+    go build -ldflags="-s -w" -o bootstrap ./cmd/auth
 
 # ---- Runtime stage ----
 # AWS provided base image for arm64 — includes the Lambda Runtime Interface Client

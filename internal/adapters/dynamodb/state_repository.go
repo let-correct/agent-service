@@ -10,11 +10,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
+	"github.com/troysnowden/let-correct-viewing/internal/domain/oauth2"
 )
 
 const stateTTL = 10 * time.Minute
-
-var ErrStateNotFound = errors.New("state not found")
 
 type StateRepository struct {
 	dynamo    *dynamodb.Client
@@ -51,7 +50,7 @@ func (r *StateRepository) Consume(ctx context.Context, state string) error {
 	if err != nil {
 		var ccf *types.ConditionalCheckFailedException
 		if errors.As(err, &ccf) {
-			return ErrStateNotFound
+			return oauth2.ErrStateNotFound
 		}
 		return fmt.Errorf("consuming state: %w", err)
 	}

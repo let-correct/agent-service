@@ -8,16 +8,20 @@ import (
 	"github.com/aws/aws-lambda-go/lambda"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	awsdynamo "github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	awskms "github.com/aws/aws-sdk-go-v2/service/kms"
 	dynamoAdapter "github.com/troysnowden/let-correct-viewing/internal/adapters/dynamodb"
 	googleOAuth "github.com/troysnowden/let-correct-viewing/internal/adapters/oauth2/google"
 	"github.com/troysnowden/let-correct-viewing/internal/application"
+	"github.com/troysnowden/let-correct-viewing/internal/config"
 	"github.com/troysnowden/let-correct-viewing/internal/domain/oauth2"
 	"github.com/troysnowden/let-correct-viewing/internal/handler"
 )
 
 func main() {
+	cfg := config.Load()
+
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: logLevel(),
+		Level: logLevel(cfg.LogLevel),
 	}))
 
 	ctx := context.Background()
@@ -30,22 +34,21 @@ func main() {
 	}
 
 	dynamoClient := awsdynamo.NewFromConfig(awsCfg)
-	stateRepo := dynamoAdapter.NewStateRepository(dynamoClient, os.Getenv("STATE_TABLE_NAME"))
+	kmsClient := awskms.NewFromConfig(awsCfg)
 
-	googleClient := googleOAuth.NewClient(
-		os.Getenv("GOOGLE_CLIENT_ID"),
-		os.Getenv("GOOGLE_CLIENT_SECRET"),
-		os.Getenv("GOOGLE_REDIRECT_URL"),
-	)
+	stateRepo := dynamoAdapter.NewStateRepository(dynamoClient, cfg.StateTableName)
+	tokenRepo := dynamoAdapter.NewTokenRepository(dynamoClient, kmsClient, cfg.TokenTableName, cfg.KMSKeyARN)
 
-	initiateAuth := application.NewInitiateAuth(
-		map[oauth2.ProviderID]oauth2.Client{
-			oauth2.ProviderGoogle: googleClient,
-		},
-		stateRepo,
-	)
+	googleClient := googleOAuth.NewClient(cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.GoogleRedirectURL)
 
-	h := handler.New(logger, initiateAuth)
+	clients := map[oauth2.ProviderID]oauth2.Client{
+		oauth2.ProviderGoogle: googleClient,
+	}
+
+	initiateAuth := application.NewInitiateAuth(clients, stateRepo)
+	exchangeCode := application.NewExchangeCode(clients, tokenRepo, stateRepo)
+
+	h := handler.New(logger, initiateAuth, exchangeCode)
 
 	lambda.StartWithOptions(
 		h.Handle,
@@ -53,8 +56,8 @@ func main() {
 	)
 }
 
-func logLevel() slog.Level {
-	switch os.Getenv("LOG_LEVEL") {
+func logLevel(level string) slog.Level {
+	switch level {
 	case "DEBUG":
 		return slog.LevelDebug
 	case "WARN":

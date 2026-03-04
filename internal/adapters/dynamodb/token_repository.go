@@ -23,15 +23,15 @@ type tokenPayload struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-type Repository struct {
+type TokenRepository struct {
 	dynamo    *dynamodb.Client
 	kms       *kms.Client
 	tableName string
 	kmsKeyID  string
 }
 
-func NewRepository(dynamo *dynamodb.Client, kms *kms.Client, tableName, kmsKeyID string) *Repository {
-	return &Repository{
+func NewTokenRepository(dynamo *dynamodb.Client, kms *kms.Client, tableName, kmsKeyID string) *TokenRepository {
+	return &TokenRepository{
 		dynamo:    dynamo,
 		kms:       kms,
 		tableName: tableName,
@@ -39,7 +39,7 @@ func NewRepository(dynamo *dynamodb.Client, kms *kms.Client, tableName, kmsKeyID
 	}
 }
 
-func (r *Repository) Save(ctx context.Context, token *oauth2.Token) error {
+func (r *TokenRepository) Save(ctx context.Context, token *oauth2.Token) error {
 	payload, err := json.Marshal(tokenPayload{
 		AccessToken:  token.AccessToken(),
 		RefreshToken: token.RefreshToken(),
@@ -69,7 +69,7 @@ func (r *Repository) Save(ctx context.Context, token *oauth2.Token) error {
 	return nil
 }
 
-func (r *Repository) FindByEmailAndProvider(ctx context.Context, email string, provider oauth2.ProviderID) (*oauth2.Token, error) {
+func (r *TokenRepository) FindByEmailAndProvider(ctx context.Context, email string, provider oauth2.ProviderID) (*oauth2.Token, error) {
 	out, err := r.dynamo.GetItem(ctx, &dynamodb.GetItemInput{
 		TableName: aws.String(r.tableName),
 		Key: map[string]types.AttributeValue{
@@ -103,7 +103,7 @@ func (r *Repository) FindByEmailAndProvider(ctx context.Context, email string, p
 	return oauth2.NewToken(email, provider, payload.AccessToken, payload.RefreshToken, time.Unix(expiresAtUnix, 0)), nil
 }
 
-func (r *Repository) encrypt(ctx context.Context, plaintext []byte) ([]byte, error) {
+func (r *TokenRepository) encrypt(ctx context.Context, plaintext []byte) ([]byte, error) {
 	out, err := r.kms.Encrypt(ctx, &kms.EncryptInput{
 		KeyId:     aws.String(r.kmsKeyID),
 		Plaintext: plaintext,
@@ -114,7 +114,7 @@ func (r *Repository) encrypt(ctx context.Context, plaintext []byte) ([]byte, err
 	return out.CiphertextBlob, nil
 }
 
-func (r *Repository) decrypt(ctx context.Context, ciphertext []byte) ([]byte, error) {
+func (r *TokenRepository) decrypt(ctx context.Context, ciphertext []byte) ([]byte, error) {
 	out, err := r.kms.Decrypt(ctx, &kms.DecryptInput{
 		CiphertextBlob: ciphertext,
 	})

@@ -18,7 +18,9 @@ resource "aws_lambda_function" "auth_lambda" {
   environment {
     variables = {
       LOG_LEVEL            = var.log_level
+      TOKEN_TABLE_NAME     = aws_dynamodb_table.oauth_tokens.name
       STATE_TABLE_NAME     = aws_dynamodb_table.oauth_state.name
+      KMS_KEY_ARN          = aws_kms_key.oauth_tokens.arn
       GOOGLE_CLIENT_ID     = var.google_client_id
       GOOGLE_CLIENT_SECRET = var.google_client_secret
       GOOGLE_REDIRECT_URL  = var.google_redirect_url

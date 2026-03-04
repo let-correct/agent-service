@@ -15,12 +15,14 @@ import (
 type Handler struct {
 	logger       *slog.Logger
 	initiateAuth *application.InitiateAuth
+	exchangeCode *application.ExchangeCode
 }
 
-func New(logger *slog.Logger, initiateAuth *application.InitiateAuth) *Handler {
+func New(logger *slog.Logger, initiateAuth *application.InitiateAuth, exchangeCode *application.ExchangeCode) *Handler {
 	return &Handler{
 		logger:       logger,
 		initiateAuth: initiateAuth,
+		exchangeCode: exchangeCode,
 	}
 }
 
@@ -33,6 +35,8 @@ func (h *Handler) Handle(ctx context.Context, req events.APIGatewayV2HTTPRequest
 	switch req.RouteKey {
 	case "GET /auth/{provider}":
 		return h.handleInitiateAuth(ctx, req)
+	case "POST /auth/{provider}/callback":
+		return h.handleExchangeCode(ctx, req)
 	default:
 		return response(http.StatusNotFound, map[string]string{"error": "not found"})
 	}
@@ -51,6 +55,36 @@ func (h *Handler) handleInitiateAuth(ctx context.Context, req events.APIGatewayV
 	}
 
 	return response(http.StatusOK, map[string]string{"url": result.URL})
+}
+
+type exchangeCodeRequest struct {
+	Code  string `json:"code"`
+	State string `json:"state"`
+	Email string `json:"email"`
+}
+
+func (h *Handler) handleExchangeCode(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
+	provider := oauth2.ProviderID(req.PathParameters["provider"])
+
+	var body exchangeCodeRequest
+	if err := json.Unmarshal([]byte(req.Body), &body); err != nil {
+		return response(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+	}
+
+	cmd := application.NewExchangeCodeCommand(body.Email, provider, body.Code, body.State)
+	err := h.exchangeCode.Handle(ctx, cmd)
+	if errors.Is(err, application.ErrUnsupportedProvider) {
+		return response(http.StatusBadRequest, map[string]string{"error": "unsupported provider"})
+	}
+	if errors.Is(err, oauth2.ErrStateNotFound) {
+		return response(http.StatusBadRequest, map[string]string{"error": "invalid or expired state"})
+	}
+	if err != nil {
+		h.logger.ErrorContext(ctx, "exchange code failed", "error", err)
+		return response(http.StatusInternalServerError, map[string]string{"error": "internal error"})
+	}
+
+	return response(http.StatusOK, map[string]string{})
 }
 
 func response(statusCode int, body any) (events.APIGatewayV2HTTPResponse, error) {

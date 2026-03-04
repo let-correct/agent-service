@@ -1,25 +1,18 @@
 package config
 
-import "os"
+import "github.com/caarlos0/env/v11"
 
 type OauthLambdaConfig struct {
-	LogLevel           string
-	StateTableName     string
-	TokenTableName     string
-	KMSKeyARN          string
-	GoogleClientID     string
-	GoogleClientSecret string
-	GoogleRedirectURL  string
+	LogLevel           string `env:"LOG_LEVEL"            envDefault:"INFO"`
+	StateTableName     string `env:"STATE_TABLE_NAME,required"`
+	TokenTableName     string `env:"TOKEN_TABLE_NAME,required"`
+	KMSKeyARN          string `env:"KMS_KEY_ARN,required"`
+	GoogleClientID     string `env:"GOOGLE_CLIENT_ID,required"`
+	GoogleClientSecret string `env:"GOOGLE_CLIENT_SECRET,required"`
+	GoogleRedirectURL  string `env:"GOOGLE_REDIRECT_URL,required"`
 }
 
-func Load() OauthLambdaConfig {
-	return OauthLambdaConfig{
-		LogLevel:           os.Getenv("LOG_LEVEL"),
-		StateTableName:     os.Getenv("STATE_TABLE_NAME"),
-		TokenTableName:     os.Getenv("TOKEN_TABLE_NAME"),
-		KMSKeyARN:          os.Getenv("KMS_KEY_ARN"),
-		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
-		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
-		GoogleRedirectURL:  os.Getenv("GOOGLE_REDIRECT_URL"),
-	}
+func Load() (OauthLambdaConfig, error) {
+	var cfg OauthLambdaConfig
+	return cfg, env.Parse(&cfg)
 }

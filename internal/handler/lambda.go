@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -88,8 +89,10 @@ func (h *Handler) handleExchangeCode(ctx context.Context, req events.APIGatewayV
 }
 
 func response(statusCode int, body any) (events.APIGatewayV2HTTPResponse, error) {
-	b, err := json.Marshal(body)
-	if err != nil {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(body); err != nil {
 		return events.APIGatewayV2HTTPResponse{StatusCode: http.StatusInternalServerError}, err
 	}
 
@@ -98,6 +101,6 @@ func response(statusCode int, body any) (events.APIGatewayV2HTTPResponse, error)
 		Headers: map[string]string{
 			"Content-Type": "application/json",
 		},
-		Body: string(b),
+		Body: buf.String(),
 	}, nil
 }

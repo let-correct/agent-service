@@ -47,9 +47,15 @@ resource "aws_apigatewayv2_integration" "auth_lambda" {
   payload_format_version = "2.0"
 }
 
-resource "aws_apigatewayv2_route" "catch_all" {
+resource "aws_apigatewayv2_route" "initiate_auth" {
   api_id    = aws_apigatewayv2_api.auth_lambda.id
-  route_key = "ANY /{proxy+}"
+  route_key = "GET /auth/{provider}"
+  target    = "integrations/${aws_apigatewayv2_integration.auth_lambda.id}"
+}
+
+resource "aws_apigatewayv2_route" "exchange_code" {
+  api_id    = aws_apigatewayv2_api.auth_lambda.id
+  route_key = "POST /auth/{provider}/callback"
   target    = "integrations/${aws_apigatewayv2_integration.auth_lambda.id}"
 }
 

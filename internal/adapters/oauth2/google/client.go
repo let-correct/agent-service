@@ -26,13 +26,13 @@ func (c *Client) config() *oauth2.Config {
 		ClientID:     c.clientID,
 		ClientSecret: c.clientSecret,
 		RedirectURL:  c.redirectURL,
-		Scopes:       []string{"openid", "email"},
+		Scopes:       []string{"https://www.googleapis.com/auth/calendar"},
 		Endpoint:     google.Endpoint,
 	}
 }
 
 func (c *Client) AuthorizationURL(_ context.Context, state string) string {
-	return c.config().AuthCodeURL(state)
+	return c.config().AuthCodeURL(state, oauth2.AccessTypeOffline)
 }
 
 func (c *Client) ExchangeCode(ctx context.Context, code, email string) (*oauth2Domain.Token, error) {

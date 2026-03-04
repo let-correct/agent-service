@@ -17,6 +17,22 @@ type Token struct {
 	expiresAt    time.Time
 }
 
+func NewToken(email string, provider ProviderID, accessToken, refreshToken string, expiresAt time.Time) *Token {
+	return &Token{
+		email:        email,
+		provider:     provider,
+		accessToken:  accessToken,
+		refreshToken: refreshToken,
+		expiresAt:    expiresAt,
+	}
+}
+
+func (t *Token) Email() string        { return t.email }
+func (t *Token) Provider() ProviderID { return t.provider }
+func (t *Token) AccessToken() string  { return t.accessToken }
+func (t *Token) RefreshToken() string { return t.refreshToken }
+func (t *Token) ExpiresAt() time.Time { return t.expiresAt }
+
 func (t *Token) IsExpired() bool {
 	return time.Now().After(t.expiresAt)
 }

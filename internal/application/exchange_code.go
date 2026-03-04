@@ -24,7 +24,7 @@ func (h *ExchangeCode) Handle(ctx context.Context, cmd ExchangeCodeCommand) erro
 		return nil
 	}
 
-	token, err := client.ExchangeCode(ctx, cmd.code)
+	token, err := client.ExchangeCode(ctx, cmd.code, cmd.email)
 	if err != nil {
 		return err
 	}

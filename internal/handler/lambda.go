@@ -9,8 +9,8 @@ import (
 	"net/http"
 
 	"github.com/aws/aws-lambda-go/events"
-	"github.com/troysnowden/let-correct-viewing/internal/application"
-	"github.com/troysnowden/let-correct-viewing/internal/domain/oauth2"
+	"github.com/troysnowden/agent-service/internal/application"
+	"github.com/troysnowden/agent-service/internal/domain/oauth2"
 )
 
 type Handler struct {

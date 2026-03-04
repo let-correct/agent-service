@@ -9,12 +9,12 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	awsdynamo "github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	awskms "github.com/aws/aws-sdk-go-v2/service/kms"
-	dynamoAdapter "github.com/troysnowden/let-correct-viewing/internal/adapters/dynamodb"
-	googleOAuth "github.com/troysnowden/let-correct-viewing/internal/adapters/oauth2/google"
-	"github.com/troysnowden/let-correct-viewing/internal/application"
-	"github.com/troysnowden/let-correct-viewing/internal/config"
-	"github.com/troysnowden/let-correct-viewing/internal/domain/oauth2"
-	"github.com/troysnowden/let-correct-viewing/internal/handler"
+	dynamoAdapter "github.com/troysnowden/agent-service/internal/adapters/dynamodb"
+	googleOAuth "github.com/troysnowden/agent-service/internal/adapters/oauth2/google"
+	"github.com/troysnowden/agent-service/internal/application"
+	"github.com/troysnowden/agent-service/internal/config"
+	"github.com/troysnowden/agent-service/internal/domain/oauth2"
+	"github.com/troysnowden/agent-service/internal/handler"
 )
 
 func main() {

@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 
-	"github.com/troysnowden/let-correct-viewing/internal/domain/oauth2"
+	"github.com/troysnowden/agent-service/internal/domain/oauth2"
 )
 
 type ExchangeCodeCommand struct {

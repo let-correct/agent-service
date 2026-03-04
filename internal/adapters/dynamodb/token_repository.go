@@ -12,7 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
-	"github.com/troysnowden/let-correct-viewing/internal/domain/oauth2"
+	"github.com/troysnowden/agent-service/internal/domain/oauth2"
 )
 
 var ErrNotFound = errors.New("token not found")

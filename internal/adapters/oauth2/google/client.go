@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	oauth2Domain "github.com/troysnowden/let-correct-viewing/internal/domain/oauth2"
+	oauth2Domain "github.com/troysnowden/agent-service/internal/domain/oauth2"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )

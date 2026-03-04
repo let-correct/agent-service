@@ -1,4 +1,4 @@
-module github.com/troysnowden/let-correct-viewing
+module github.com/troysnowden/agent-service
 
 go 1.25.0
 

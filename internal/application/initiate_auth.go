@@ -6,7 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 
-	"github.com/troysnowden/let-correct-viewing/internal/domain/oauth2"
+	"github.com/troysnowden/agent-service/internal/domain/oauth2"
 )
 
 var ErrUnsupportedProvider = errors.New("unsupported provider")

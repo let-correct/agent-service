@@ -13,10 +13,10 @@ terraform {
   }
 
   cloud {
-    organization = "let-correct-viewing"
+    organization = "let-correct"
 
     workspaces {
-      name = "let-correct-viewing"
+      name = "agent-service"
     }
   }
 }

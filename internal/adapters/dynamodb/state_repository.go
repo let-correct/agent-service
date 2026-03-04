@@ -10,7 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-	"github.com/troysnowden/let-correct-viewing/internal/domain/oauth2"
+	"github.com/troysnowden/agent-service/internal/domain/oauth2"
 )
 
 const stateTTL = 10 * time.Minute

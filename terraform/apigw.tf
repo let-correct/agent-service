@@ -47,16 +47,32 @@ resource "aws_apigatewayv2_integration" "auth_lambda" {
   payload_format_version = "2.0"
 }
 
+resource "aws_apigatewayv2_authorizer" "cognito_jwt" {
+  api_id           = aws_apigatewayv2_api.auth_lambda.id
+  authorizer_type  = "JWT"
+  identity_sources = ["$request.header.Authorization"]
+  name             = "cognito-jwt"
+
+  jwt_configuration {
+    issuer   = "https://cognito-idp.${var.aws_region}.amazonaws.com/${aws_cognito_user_pool.agents.id}"
+    audience = [aws_cognito_user_pool_client.agents.id]
+  }
+}
+
 resource "aws_apigatewayv2_route" "initiate_auth" {
-  api_id    = aws_apigatewayv2_api.auth_lambda.id
-  route_key = "GET /auth/{provider}"
-  target    = "integrations/${aws_apigatewayv2_integration.auth_lambda.id}"
+  api_id             = aws_apigatewayv2_api.auth_lambda.id
+  route_key          = "GET /auth/{provider}"
+  target             = "integrations/${aws_apigatewayv2_integration.auth_lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito_jwt.id
 }
 
 resource "aws_apigatewayv2_route" "exchange_code" {
-  api_id    = aws_apigatewayv2_api.auth_lambda.id
-  route_key = "POST /auth/{provider}/callback"
-  target    = "integrations/${aws_apigatewayv2_integration.auth_lambda.id}"
+  api_id             = aws_apigatewayv2_api.auth_lambda.id
+  route_key          = "POST /auth/{provider}/callback"
+  target             = "integrations/${aws_apigatewayv2_integration.auth_lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito_jwt.id
 }
 
 # Grants API Gateway permission to invoke the Lambda function

@@ -61,18 +61,22 @@ func (h *Handler) handleInitiateAuth(ctx context.Context, req events.APIGatewayV
 type exchangeCodeRequest struct {
 	Code  string `json:"code"`
 	State string `json:"state"`
-	Email string `json:"email"`
 }
 
 func (h *Handler) handleExchangeCode(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
 	provider := oauth2.ProviderID(req.PathParameters["provider"])
+
+	email := req.RequestContext.Authorizer.JWT.Claims["email"]
+	if email == "" {
+		return response(http.StatusUnauthorized, map[string]string{"error": "missing email claim"})
+	}
 
 	var body exchangeCodeRequest
 	if err := json.Unmarshal([]byte(req.Body), &body); err != nil {
 		return response(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 	}
 
-	cmd := application.NewExchangeCodeCommand(body.Email, provider, body.Code, body.State)
+	cmd := application.NewExchangeCodeCommand(email, provider, body.Code, body.State)
 	err := h.exchangeCode.Handle(ctx, cmd)
 	if errors.Is(err, application.ErrUnsupportedProvider) {
 		return response(http.StatusBadRequest, map[string]string{"error": "unsupported provider"})

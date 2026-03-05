@@ -35,3 +35,19 @@ variable "google_redirect_url" {
   description = "Google OAuth redirect URL"
   type        = string
 }
+
+variable "google_workspace_client_id" {
+  description = "Google OAuth client ID for Cognito federation (Google Workspace SSO)"
+  type        = string
+}
+
+variable "google_workspace_client_secret" {
+  description = "Google OAuth client secret for Cognito federation (Google Workspace SSO)"
+  type        = string
+  sensitive   = true
+}
+
+variable "cognito_callback_urls" {
+  description = "Allowed redirect URIs after Google Workspace login"
+  type        = list(string)
+}

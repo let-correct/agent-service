@@ -17,3 +17,15 @@ output "api_gateway_url" {
   description = "Base URL for the HTTP API — append your path to call the Lambda"
   value       = aws_apigatewayv2_stage.auth_lambda.invoke_url
 }
+
+output "cognito_user_pool_id" {
+  value = aws_cognito_user_pool.agents.id
+}
+
+output "cognito_user_pool_client_id" {
+  value = aws_cognito_user_pool_client.agents.id
+}
+
+output "cognito_domain" {
+  value = "https://${aws_cognito_user_pool_domain.agents.domain}.auth.${var.aws_region}.amazoncognito.com"
+}

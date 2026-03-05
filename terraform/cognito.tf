@@ -11,16 +11,29 @@ resource "aws_cognito_user_pool" "agents" {
     allow_admin_create_user_only = true
   }
 
-  password_policy {
-    minimum_length                   = 8
-    require_uppercase                = true
-    require_numbers                  = true
-    require_symbols                  = true
-    require_lowercase                = true
-    temporary_password_validity_days = 7
+  tags = var.tags
+}
+
+resource "aws_cognito_user_pool_domain" "agents" {
+  domain       = "agent-service"
+  user_pool_id = aws_cognito_user_pool.agents.id
+}
+
+resource "aws_cognito_identity_provider" "google" {
+  user_pool_id  = aws_cognito_user_pool.agents.id
+  provider_name = "Google"
+  provider_type = "Google"
+
+  provider_details = {
+    client_id        = var.google_workspace_client_id
+    client_secret    = var.google_workspace_client_secret
+    authorize_scopes = "openid email profile"
   }
 
-  tags = var.tags
+  attribute_mapping = {
+    email    = "email"
+    username = "sub"
+  }
 }
 
 resource "aws_cognito_user_pool_client" "agents" {
@@ -29,24 +42,25 @@ resource "aws_cognito_user_pool_client" "agents" {
 
   generate_secret = false
 
+  supported_identity_providers = ["Google"]
+
+  allowed_oauth_flows_user_pool_client = true
+  allowed_oauth_flows                  = ["code"]
+  allowed_oauth_scopes                 = ["openid", "email", "profile"]
+
+  callback_urls = var.cognito_callback_urls
+
   explicit_auth_flows = [
-    "ALLOW_USER_SRP_AUTH",
     "ALLOW_REFRESH_TOKEN_AUTH",
   ]
 
-  access_token_validity  = 60   # minutes (1 hour)
-  refresh_token_validity = 30   # days
+  access_token_validity  = 60 # minutes (1 hour)
+  refresh_token_validity = 30 # days
 
   token_validity_units {
     access_token  = "minutes"
     refresh_token = "days"
   }
-}
 
-output "cognito_user_pool_id" {
-  value = aws_cognito_user_pool.agents.id
-}
-
-output "cognito_user_pool_client_id" {
-  value = aws_cognito_user_pool_client.agents.id
+  depends_on = [aws_cognito_identity_provider.google]
 }

@@ -1,0 +1,190 @@
+package handler
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"io"
+	"log/slog"
+	"net/http"
+	"testing"
+
+	"github.com/aws/aws-lambda-go/events"
+	"github.com/troysnowden/agent-service/internal/application"
+	"github.com/troysnowden/agent-service/internal/domain/oauth2"
+)
+
+var errInternal = errors.New("something went wrong")
+
+// -- mocks --
+
+type mockAuthInitiator struct {
+	result application.InitiateAuthResult
+	err    error
+}
+
+func (m *mockAuthInitiator) Handle(_ context.Context, _ application.InitiateAuthCommand) (application.InitiateAuthResult, error) {
+	return m.result, m.err
+}
+
+type mockCodeExchanger struct{ err error }
+
+func (m *mockCodeExchanger) Handle(_ context.Context, _ application.ExchangeCodeCommand) error {
+	return m.err
+}
+
+// -- tests --
+
+func TestHandle_UnknownRoute(t *testing.T) {
+	h := New(slog.New(slog.NewTextHandler(io.Discard, nil)), &mockAuthInitiator{}, &mockCodeExchanger{})
+	resp, err := h.Handle(context.Background(), events.APIGatewayV2HTTPRequest{RouteKey: "DELETE /unknown"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.StatusCode != http.StatusNotFound {
+		t.Errorf("status = %d, want %d", resp.StatusCode, http.StatusNotFound)
+	}
+}
+
+func TestHandleInitiateAuth(t *testing.T) {
+	tests := []struct {
+		name       string
+		initiator  *mockAuthInitiator
+		wantStatus int
+		wantURL    string
+	}{
+		{
+			name:       "success returns 200 with url",
+			initiator:  &mockAuthInitiator{result: application.InitiateAuthResult{URL: "https://auth.example.com/authorize"}},
+			wantStatus: http.StatusOK,
+			wantURL:    "https://auth.example.com/authorize",
+		},
+		{
+			name:       "unsupported provider returns 400",
+			initiator:  &mockAuthInitiator{err: application.ErrUnsupportedProvider},
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "internal error returns 500",
+			initiator:  &mockAuthInitiator{err: errInternal},
+			wantStatus: http.StatusInternalServerError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := New(slog.New(slog.NewTextHandler(io.Discard, nil)), tt.initiator, &mockCodeExchanger{})
+			resp, err := h.Handle(
+				context.Background(),
+				events.APIGatewayV2HTTPRequest{
+					RouteKey:       "GET /auth/{provider}",
+					PathParameters: map[string]string{"provider": "google"},
+				},
+			)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if resp.StatusCode != tt.wantStatus {
+				t.Errorf("status = %d, want %d", resp.StatusCode, tt.wantStatus)
+			}
+			if tt.wantURL != "" {
+				if got := parseBody(t, resp.Body)["url"]; got != tt.wantURL {
+					t.Errorf("url = %q, want %q", got, tt.wantURL)
+				}
+			}
+		})
+	}
+}
+
+func TestHandleExchangeCode(t *testing.T) {
+	validBody := `{"code":"auth-code","state":"state-token"}`
+
+	tests := []struct {
+		name       string
+		email      string
+		body       string
+		exchanger  *mockCodeExchanger
+		wantStatus int
+	}{
+		{
+			name:       "success returns 200",
+			email:      "user@example.com",
+			body:       validBody,
+			exchanger:  &mockCodeExchanger{},
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "missing email claim returns 401",
+			email:      "",
+			body:       validBody,
+			exchanger:  &mockCodeExchanger{},
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "invalid json body returns 400",
+			email:      "user@example.com",
+			body:       "not-json",
+			exchanger:  &mockCodeExchanger{},
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "unsupported provider returns 400",
+			email:      "user@example.com",
+			body:       validBody,
+			exchanger:  &mockCodeExchanger{err: application.ErrUnsupportedProvider},
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "invalid state returns 400",
+			email:      "user@example.com",
+			body:       validBody,
+			exchanger:  &mockCodeExchanger{err: oauth2.ErrStateNotFound},
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "internal error returns 500",
+			email:      "user@example.com",
+			body:       validBody,
+			exchanger:  &mockCodeExchanger{err: errInternal},
+			wantStatus: http.StatusInternalServerError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := New(slog.New(slog.NewTextHandler(io.Discard, nil)), &mockAuthInitiator{}, tt.exchanger)
+			resp, err := h.Handle(
+				context.Background(),
+				events.APIGatewayV2HTTPRequest{
+					RouteKey:       "POST /auth/{provider}/callback",
+					PathParameters: map[string]string{"provider": "google"},
+					RequestContext: events.APIGatewayV2HTTPRequestContext{
+						Authorizer: &events.APIGatewayV2HTTPRequestContextAuthorizerDescription{
+							JWT: &events.APIGatewayV2HTTPRequestContextAuthorizerJWTDescription{
+								Claims: map[string]string{"email": tt.email},
+							},
+						},
+					},
+					Body: tt.body,
+				},
+			)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if resp.StatusCode != tt.wantStatus {
+				t.Errorf("status = %d, want %d", resp.StatusCode, tt.wantStatus)
+			}
+		})
+	}
+}
+
+// -- helpers --
+
+func parseBody(t *testing.T, body string) map[string]string {
+	t.Helper()
+	var m map[string]string
+	if err := json.Unmarshal([]byte(body), &m); err != nil {
+		t.Fatalf("failed to parse response body %q: %v", body, err)
+	}
+	return m
+}

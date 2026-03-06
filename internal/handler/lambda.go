@@ -13,13 +13,21 @@ import (
 	"github.com/troysnowden/agent-service/internal/domain/oauth2"
 )
 
-type Handler struct {
-	logger       *slog.Logger
-	initiateAuth *application.InitiateAuth
-	exchangeCode *application.ExchangeCode
+type authInitiator interface {
+	Handle(ctx context.Context, cmd application.InitiateAuthCommand) (application.InitiateAuthResult, error)
 }
 
-func New(logger *slog.Logger, initiateAuth *application.InitiateAuth, exchangeCode *application.ExchangeCode) *Handler {
+type codeExchanger interface {
+	Handle(ctx context.Context, cmd application.ExchangeCodeCommand) error
+}
+
+type Handler struct {
+	logger       *slog.Logger
+	initiateAuth authInitiator
+	exchangeCode codeExchanger
+}
+
+func New(logger *slog.Logger, initiateAuth authInitiator, exchangeCode codeExchanger) *Handler {
 	return &Handler{
 		logger:       logger,
 		initiateAuth: initiateAuth,

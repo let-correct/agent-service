@@ -67,6 +67,40 @@ sequenceDiagram
 
 ---
 
+### 3. Authorising Access to Arthur
+
+Once authenticated, an agent authorises the service to access Arthur on their behalf. The service stores the resulting OAuth tokens in DynamoDB, keyed by the agent's email (sourced from their Cognito JWT — not caller-supplied).
+
+```mermaid
+sequenceDiagram
+    actor Agent as Agent via UI
+    participant APIGW as API Gateway
+    participant Lambda
+    participant DynamoDB
+    participant Arthur as Arthur API
+
+    Agent->>APIGW: Initiate provider authorisation
+    APIGW->>APIGW: Validate JWT (401 if invalid)
+    APIGW->>Lambda: Forward request
+    Lambda->>DynamoDB: Save state token
+    Lambda-->>Agent: Return Arthur Auth URL
+
+    Agent->>Arthur: Visit auth URL, grant Calendar access
+    Arthur-->>Agent: Redirect to callback with code + state
+
+    Agent->>APIGW: Submit callback
+    APIGW->>APIGW: Validate JWT (401 if invalid)
+    APIGW->>Lambda: Forward request
+    Lambda->>Lambda: Read email from JWT claims
+    Lambda->>DynamoDB: Validate & consume state token
+    Lambda->>Arthur: Exchange code for OAuth tokens
+    Arthur-->>Lambda: Access token + refresh token
+    Lambda->>DynamoDB: Save tokens (keyed by email)
+    Lambda-->>Agent: 200 OK
+```
+
+---
+
 ## Lambdas
 
 ### Auth Lambda (`cmd/auth`)

@@ -1,9 +1,19 @@
 package main
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"fmt"
 	"log"
+	"math/big"
+	"net"
 	"net/http"
+	"time"
 )
 
 func main() {
@@ -22,6 +32,49 @@ func main() {
 </body></html>`, code, state)
 	})
 
-	log.Println("listening on http://localhost:3000")
-	log.Fatal(http.ListenAndServe(":3000", nil))
+	tlsCert, err := selfSignedCert()
+	if err != nil {
+		log.Fatalf("generating cert: %v", err)
+	}
+
+	server := &http.Server{
+		Addr: ":3000",
+		TLSConfig: &tls.Config{
+			Certificates: []tls.Certificate{tlsCert},
+		},
+	}
+
+	log.Println("listening on https://localhost:3000 (self-signed cert — accept the browser warning)")
+	log.Fatal(server.ListenAndServeTLS("", ""))
+}
+
+func selfSignedCert() (tls.Certificate, error) {
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+
+	template := &x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject:      pkix.Name{CommonName: "localhost"},
+		DNSNames:     []string{"localhost"},
+		IPAddresses:  []net.IP{net.ParseIP("127.0.0.1")},
+		NotBefore:    time.Now(),
+		NotAfter:     time.Now().Add(24 * time.Hour),
+	}
+
+	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+
+	keyDER, err := x509.MarshalECPrivateKey(key)
+	if err != nil {
+		return tls.Certificate{}, err
+	}
+
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
+
+	return tls.X509KeyPair(certPEM, keyPEM)
 }

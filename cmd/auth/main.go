@@ -10,6 +10,7 @@ import (
 	awsdynamo "github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	awskms "github.com/aws/aws-sdk-go-v2/service/kms"
 	dynamoAdapter "github.com/troysnowden/agent-service/internal/adapters/dynamodb"
+	arthurOAuth "github.com/troysnowden/agent-service/internal/adapters/oauth2/arthur"
 	googleOAuth "github.com/troysnowden/agent-service/internal/adapters/oauth2/google"
 	"github.com/troysnowden/agent-service/internal/application"
 	"github.com/troysnowden/agent-service/internal/config"
@@ -44,9 +45,11 @@ func main() {
 	tokenRepo := dynamoAdapter.NewTokenRepository(dynamoClient, kmsClient, cfg.TokenTableName, cfg.KMSKeyARN)
 
 	googleClient := googleOAuth.NewClient(cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.GoogleRedirectURL)
+	arthurClient := arthurOAuth.NewClient(cfg.ArthurClientID, cfg.ArthurClientSecret, cfg.ArthurRedirectURL, cfg.ArthurAuthURL, cfg.ArthurTokenURL)
 
 	clients := map[oauth2.ProviderID]oauth2.Client{
 		oauth2.ProviderGoogle: googleClient,
+		oauth2.ProviderArthur: arthurClient,
 	}
 
 	initiateAuth := application.NewInitiateAuth(clients, stateRepo)

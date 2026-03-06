@@ -10,6 +10,11 @@ type OauthLambdaConfig struct {
 	GoogleClientID     string `env:"GOOGLE_CLIENT_ID,required"`
 	GoogleClientSecret string `env:"GOOGLE_CLIENT_SECRET,required"`
 	GoogleRedirectURL  string `env:"GOOGLE_REDIRECT_URL,required"`
+	ArthurClientID     string `env:"ARTHUR_CLIENT_ID,required"`
+	ArthurClientSecret string `env:"ARTHUR_CLIENT_SECRET,required"`
+	ArthurRedirectURL  string `env:"ARTHUR_REDIRECT_URL,required"`
+	ArthurAuthURL      string `env:"ARTHUR_AUTH_URL,required"`
+	ArthurTokenURL     string `env:"ARTHUR_TOKEN_URL,required"`
 }
 
 func Load() (OauthLambdaConfig, error) {

@@ -51,3 +51,29 @@ variable "cognito_callback_urls" {
   description = "Allowed redirect URIs after Google Workspace login"
   type        = list(string)
 }
+
+variable "arthur_client_id" {
+  description = "Arthur OAuth client ID"
+  type        = string
+}
+
+variable "arthur_client_secret" {
+  description = "Arthur OAuth client secret"
+  type        = string
+  sensitive   = true
+}
+
+variable "arthur_redirect_url" {
+  description = "Arthur OAuth redirect URL"
+  type        = string
+}
+
+variable "arthur_auth_url" {
+  description = "Arthur OAuth auth endpoint URL"
+  type        = string
+}
+
+variable "arthur_token_url" {
+  description = "Arthur OAuth token endpoint URL"
+  type        = string
+}

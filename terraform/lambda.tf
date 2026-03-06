@@ -24,6 +24,11 @@ resource "aws_lambda_function" "auth_lambda" {
       GOOGLE_CLIENT_ID     = var.google_client_id
       GOOGLE_CLIENT_SECRET = var.google_client_secret
       GOOGLE_REDIRECT_URL  = var.google_redirect_url
+      ARTHUR_CLIENT_ID = var.arthur_client_id
+      ARTHUR_CLIENT_SECRET = var.arthur_client_secret
+      ARTHUR_REDIRECT_URL  = var.arthur_redirect_url
+      ARTHUR_AUTH_URL = var.arthur_auth_url
+      ARTHUR_TOKEN_URL  = var.arthur_token_url
     }
   }
 

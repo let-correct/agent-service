@@ -38,7 +38,7 @@ func (c *Client) config() *oauth2.Config {
 }
 
 func (c *Client) AuthorizationURL(_ context.Context, state string) string {
-	return c.config().AuthCodeURL(state, oauth2.AccessTypeOffline)
+	return c.config().AuthCodeURL(state)
 }
 
 func (c *Client) ExchangeCode(ctx context.Context, code, email string) (*oauth2Domain.Token, error) {

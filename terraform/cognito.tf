@@ -64,3 +64,22 @@ resource "aws_cognito_user_pool_client" "agents" {
 
   depends_on = [aws_cognito_identity_provider.google]
 }
+
+### 
+# This cognito pool currently doesn't enforce @letcorrect.com domain 
+# This can be done by creating the OAuth Client in the @letcorrect.com workspace
+# And Setting the User type to Internal
+
+# You need to be a Google Workspace admin (or have a delegated admin role with sufficient permissions) to create an Internal OAuth app.
+# Specifically, to set User type to Internal and publish the OAuth consent screen within a Workspace org, 
+# you need the OAuth Config Editor role at minimum, which is a delegated admin privilege. A regular Workspace member cannot do this.
+
+# Otherwise, you need manual validation in a lambda and to attach it to the user pool
+# resource "aws_cognito_user_pool" "agents" {
+#   # ... existing config ...
+
+#   lambda_config {
+#     pre_sign_up = aws_lambda_function.cognito_pre_sign_up.arn
+#   }
+# }
+###

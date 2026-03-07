@@ -1,7 +1,6 @@
 package calendar
 
 import (
-	"context"
 	"errors"
 	"time"
 )
@@ -28,8 +27,3 @@ func (s *Sync) Email() string           { return s.email }
 func (s *Sync) CalendarID() string      { return s.calendarID }
 func (s *Sync) SyncToken() string       { return s.syncToken }
 func (s *Sync) LastSyncedAt() time.Time { return s.lastSyncedAt }
-
-type SyncRepository interface {
-	FindAll(ctx context.Context) ([]*Sync, error)
-	Save(ctx context.Context, sync *Sync) error
-}

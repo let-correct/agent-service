@@ -42,6 +42,7 @@ func (r *SyncRepository) FindAll(ctx context.Context) ([]*calendar.Sync, error) 
 			syncs = append(syncs, s)
 		}
 
+		// scan returns a limited amount of items, items left determined by this attribute
 		if out.LastEvaluatedKey == nil {
 			break
 		}

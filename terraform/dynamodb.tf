@@ -28,6 +28,24 @@ resource "aws_dynamodb_table" "oauth_tokens" {
 }
 
 ###############################################################################
+# Google Calendar Sync Tokens DynamoDB Table
+###############################################################################
+
+resource "aws_dynamodb_table" "google_calendar_sync_tokens" {
+  name         = "google-calendar-sync-tokens"
+  billing_mode = "PAY_PER_REQUEST"
+
+  hash_key = "email"
+
+  attribute {
+    name = "email"
+    type = "S"
+  }
+
+  tags = var.tags
+}
+
+###############################################################################
 # OAuth State DynamoDB Table
 ###############################################################################
 

@@ -3,7 +3,6 @@ package dynamodb
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -14,8 +13,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/troysnowden/agent-service/internal/domain/oauth2"
 )
-
-var ErrNotFound = errors.New("token not found")
 
 // tokenPayload is the JSON structure encrypted as a single KMS blob.
 type tokenPayload struct {
@@ -81,7 +78,7 @@ func (r *TokenRepository) FindByEmailAndProvider(ctx context.Context, email stri
 		return nil, fmt.Errorf("getting item: %w", err)
 	}
 	if out.Item == nil {
-		return nil, ErrNotFound
+		return nil, oauth2.ErrTokenNotFound
 	}
 
 	ciphertext := out.Item["token_data"].(*types.AttributeValueMemberB).Value

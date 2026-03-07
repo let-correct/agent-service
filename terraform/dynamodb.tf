@@ -19,11 +19,6 @@ resource "aws_dynamodb_table" "oauth_tokens" {
     type = "S"
   }
 
-  ttl {
-    attribute_name = "expires_at"
-    enabled        = true
-  }
-
   server_side_encryption {
     enabled     = true
     kms_key_arn = aws_kms_key.oauth_tokens.arn

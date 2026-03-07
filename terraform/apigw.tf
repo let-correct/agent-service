@@ -75,6 +75,13 @@ resource "aws_apigatewayv2_route" "exchange_code" {
   authorizer_id      = aws_apigatewayv2_authorizer.cognito_jwt.id
 }
 
+resource "aws_apigatewayv2_route" "get_token" {
+  api_id             = aws_apigatewayv2_api.auth_lambda.id
+  route_key          = "GET /tokens/{provider}"
+  target             = "integrations/${aws_apigatewayv2_integration.auth_lambda.id}"
+  authorization_type = "AWS_IAM"
+}
+
 # Grants API Gateway permission to invoke the Lambda function
 resource "aws_lambda_permission" "auth_lambda_api_gateway" {
   statement_id  = "AllowAPIGatewayInvoke"

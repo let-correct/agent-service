@@ -54,8 +54,9 @@ func main() {
 
 	initiateAuth := application.NewInitiateAuth(clients, stateRepo)
 	exchangeCode := application.NewExchangeCode(clients, tokenRepo, stateRepo)
+	getToken := application.NewGetToken(clients, tokenRepo)
 
-	h := handler.New(logger, initiateAuth, exchangeCode)
+	h := handler.New(logger, initiateAuth, exchangeCode, getToken)
 
 	lambda.StartWithOptions(
 		h.Handle,

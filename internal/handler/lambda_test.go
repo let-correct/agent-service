@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/troysnowden/agent-service/internal/application"
@@ -33,10 +34,21 @@ func (m *mockCodeExchanger) Handle(_ context.Context, _ application.ExchangeCode
 	return m.err
 }
 
+type mockTokenGetter struct {
+	result application.GetTokenResult
+	err    error
+}
+
+func (m *mockTokenGetter) Handle(_ context.Context, _ application.GetTokenCommand) (application.GetTokenResult, error) {
+	return m.result, m.err
+}
+
+func newLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
+
 // -- tests --
 
 func TestHandle_UnknownRoute(t *testing.T) {
-	h := New(slog.New(slog.NewTextHandler(io.Discard, nil)), &mockAuthInitiator{}, &mockCodeExchanger{})
+	h := New(newLogger(), &mockAuthInitiator{}, &mockCodeExchanger{}, &mockTokenGetter{})
 	resp, err := h.Handle(context.Background(), events.APIGatewayV2HTTPRequest{RouteKey: "DELETE /unknown"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -73,7 +85,7 @@ func TestHandleInitiateAuth(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := New(slog.New(slog.NewTextHandler(io.Discard, nil)), tt.initiator, &mockCodeExchanger{})
+			h := New(newLogger(), tt.initiator, &mockCodeExchanger{}, &mockTokenGetter{})
 			resp, err := h.Handle(
 				context.Background(),
 				events.APIGatewayV2HTTPRequest{
@@ -152,7 +164,7 @@ func TestHandleExchangeCode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			h := New(slog.New(slog.NewTextHandler(io.Discard, nil)), &mockAuthInitiator{}, tt.exchanger)
+			h := New(newLogger(), &mockAuthInitiator{}, tt.exchanger, &mockTokenGetter{})
 			resp, err := h.Handle(
 				context.Background(),
 				events.APIGatewayV2HTTPRequest{
@@ -173,6 +185,82 @@ func TestHandleExchangeCode(t *testing.T) {
 			}
 			if resp.StatusCode != tt.wantStatus {
 				t.Errorf("status = %d, want %d", resp.StatusCode, tt.wantStatus)
+			}
+		})
+	}
+}
+
+func TestHandleGetToken(t *testing.T) {
+	validResult := application.GetTokenResult{
+		AccessToken: "access-abc",
+		ExpiresAt:   time.Now().Add(time.Hour),
+	}
+
+	tests := []struct {
+		name       string
+		email      string
+		getter     *mockTokenGetter
+		wantStatus int
+		wantToken  string
+	}{
+		{
+			name:       "success returns 200 with access_token",
+			email:      "user@example.com",
+			getter:     &mockTokenGetter{result: validResult},
+			wantStatus: http.StatusOK,
+			wantToken:  "access-abc",
+		},
+		{
+			name:       "missing email query param returns 400",
+			email:      "",
+			getter:     &mockTokenGetter{},
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "unsupported provider returns 400",
+			email:      "user@example.com",
+			getter:     &mockTokenGetter{err: application.ErrUnsupportedProvider},
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "token not found returns 404",
+			email:      "user@example.com",
+			getter:     &mockTokenGetter{err: oauth2.ErrTokenNotFound},
+			wantStatus: http.StatusNotFound,
+		},
+		{
+			name:       "internal error returns 500",
+			email:      "user@example.com",
+			getter:     &mockTokenGetter{err: errInternal},
+			wantStatus: http.StatusInternalServerError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := New(newLogger(), &mockAuthInitiator{}, &mockCodeExchanger{}, tt.getter)
+			queryParams := map[string]string{}
+			if tt.email != "" {
+				queryParams["email"] = tt.email
+			}
+			resp, err := h.Handle(
+				context.Background(),
+				events.APIGatewayV2HTTPRequest{
+					RouteKey:              "GET /tokens/{provider}",
+					PathParameters:        map[string]string{"provider": "google"},
+					QueryStringParameters: queryParams,
+				},
+			)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if resp.StatusCode != tt.wantStatus {
+				t.Errorf("status = %d, want %d", resp.StatusCode, tt.wantStatus)
+			}
+			if tt.wantToken != "" {
+				if got := parseBody(t, resp.Body)["access_token"]; got != tt.wantToken {
+					t.Errorf("access_token = %q, want %q", got, tt.wantToken)
+				}
 			}
 		})
 	}

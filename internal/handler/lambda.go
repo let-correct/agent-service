@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/troysnowden/agent-service/internal/application"
@@ -21,17 +22,23 @@ type codeExchanger interface {
 	Handle(ctx context.Context, cmd application.ExchangeCodeCommand) error
 }
 
+type tokenGetter interface {
+	Handle(ctx context.Context, cmd application.GetTokenCommand) (application.GetTokenResult, error)
+}
+
 type Handler struct {
 	logger       *slog.Logger
 	initiateAuth authInitiator
 	exchangeCode codeExchanger
+	getToken     tokenGetter
 }
 
-func New(logger *slog.Logger, initiateAuth authInitiator, exchangeCode codeExchanger) *Handler {
+func New(logger *slog.Logger, initiateAuth authInitiator, exchangeCode codeExchanger, getToken tokenGetter) *Handler {
 	return &Handler{
 		logger:       logger,
 		initiateAuth: initiateAuth,
 		exchangeCode: exchangeCode,
+		getToken:     getToken,
 	}
 }
 
@@ -46,6 +53,8 @@ func (h *Handler) Handle(ctx context.Context, req events.APIGatewayV2HTTPRequest
 		return h.handleInitiateAuth(ctx, req)
 	case "POST /auth/{provider}/callback":
 		return h.handleExchangeCode(ctx, req)
+	case "GET /tokens/{provider}":
+		return h.handleGetToken(ctx, req)
 	default:
 		return response(http.StatusNotFound, map[string]string{"error": "not found"})
 	}
@@ -98,6 +107,37 @@ func (h *Handler) handleExchangeCode(ctx context.Context, req events.APIGatewayV
 	}
 
 	return response(http.StatusOK, map[string]string{})
+}
+
+type getTokenResponse struct {
+	AccessToken string `json:"access_token"`
+	ExpiresAt   string `json:"expires_at"`
+}
+
+func (h *Handler) handleGetToken(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
+	provider := oauth2.ProviderID(req.PathParameters["provider"])
+
+	email := req.QueryStringParameters["email"]
+	if email == "" {
+		return response(http.StatusBadRequest, map[string]string{"error": "missing email query parameter"})
+	}
+
+	result, err := h.getToken.Handle(ctx, application.NewGetTokenCommand(email, provider))
+	if errors.Is(err, application.ErrUnsupportedProvider) {
+		return response(http.StatusBadRequest, map[string]string{"error": "unsupported provider"})
+	}
+	if errors.Is(err, oauth2.ErrTokenNotFound) {
+		return response(http.StatusNotFound, map[string]string{"error": "token not found"})
+	}
+	if err != nil {
+		h.logger.ErrorContext(ctx, "get token failed", "error", err)
+		return response(http.StatusInternalServerError, map[string]string{"error": "internal error"})
+	}
+
+	return response(http.StatusOK, getTokenResponse{
+		AccessToken: result.AccessToken,
+		ExpiresAt:   result.ExpiresAt.Format(time.RFC3339),
+	})
 }
 
 func response(statusCode int, body any) (events.APIGatewayV2HTTPResponse, error) {

@@ -1,4 +1,4 @@
-package oauth2
+package state
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 
 var ErrStateNotFound = errors.New("state not found")
 
-type StateRepository interface {
+type Repository interface {
 	Save(ctx context.Context, state string) error
 	Consume(ctx context.Context, state string) error // validates existence then deletes
 }

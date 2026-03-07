@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/troysnowden/agent-service/internal/domain/oauth2"
+	oauthtoken "github.com/troysnowden/agent-service/internal/domain/oauth2/token"
 )
 
 type mockGetTokenRepo struct {
@@ -100,8 +101,8 @@ func TestGetToken_Handle(t *testing.T) {
 		{
 			name:     "token not found returns ErrTokenNotFound",
 			provider: oauth2.ProviderGoogle,
-			findErr:  oauth2.ErrTokenNotFound,
-			wantErr:  oauth2.ErrTokenNotFound,
+			findErr:  oauthtoken.ErrTokenNotFound,
+			wantErr:  oauthtoken.ErrTokenNotFound,
 		},
 		{
 			name:     "repo find failure is propagated",

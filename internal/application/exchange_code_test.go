@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/troysnowden/agent-service/internal/domain/oauth2"
+	oauthstate "github.com/troysnowden/agent-service/internal/domain/oauth2/state"
 )
 
 type mockTokenRepo struct {
@@ -50,8 +51,8 @@ func TestExchangeCode_Handle(t *testing.T) {
 		{
 			name:         "invalid state aborts before exchange",
 			provider:     oauth2.ProviderGoogle,
-			consumeErr:   oauth2.ErrStateNotFound,
-			wantErr:      oauth2.ErrStateNotFound,
+			consumeErr:   oauthstate.ErrStateNotFound,
+			wantErr:      oauthstate.ErrStateNotFound,
 			wantConsumed: true,
 		},
 		{

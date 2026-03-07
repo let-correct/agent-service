@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/troysnowden/agent-service/internal/domain/oauth2"
+	oauthtoken "github.com/troysnowden/agent-service/internal/domain/oauth2/token"
 )
 
 type GetTokenCommand struct {
@@ -23,10 +24,10 @@ type GetTokenResult struct {
 
 type GetToken struct {
 	clients map[oauth2.ProviderID]oauth2.Client
-	tokens  oauth2.TokenRepository
+	tokens  oauthtoken.Repository
 }
 
-func NewGetToken(clients map[oauth2.ProviderID]oauth2.Client, tokens oauth2.TokenRepository) *GetToken {
+func NewGetToken(clients map[oauth2.ProviderID]oauth2.Client, tokens oauthtoken.Repository) *GetToken {
 	return &GetToken{clients: clients, tokens: tokens}
 }
 

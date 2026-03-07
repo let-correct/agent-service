@@ -1,8 +1,8 @@
 package handler
 
 import (
-	"context"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -12,6 +12,8 @@ import (
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/troysnowden/agent-service/internal/application"
 	"github.com/troysnowden/agent-service/internal/domain/oauth2"
+	oauthstate "github.com/troysnowden/agent-service/internal/domain/oauth2/state"
+	oauthtoken "github.com/troysnowden/agent-service/internal/domain/oauth2/token"
 )
 
 type authInitiator interface {
@@ -98,7 +100,7 @@ func (h *Handler) handleExchangeCode(ctx context.Context, req events.APIGatewayV
 	if errors.Is(err, application.ErrUnsupportedProvider) {
 		return response(http.StatusBadRequest, map[string]string{"error": "unsupported provider"})
 	}
-	if errors.Is(err, oauth2.ErrStateNotFound) {
+	if errors.Is(err, oauthstate.ErrStateNotFound) {
 		return response(http.StatusBadRequest, map[string]string{"error": "invalid or expired state"})
 	}
 	if err != nil {
@@ -126,7 +128,7 @@ func (h *Handler) handleGetToken(ctx context.Context, req events.APIGatewayV2HTT
 	if errors.Is(err, application.ErrUnsupportedProvider) {
 		return response(http.StatusBadRequest, map[string]string{"error": "unsupported provider"})
 	}
-	if errors.Is(err, oauth2.ErrTokenNotFound) {
+	if errors.Is(err, oauthtoken.ErrTokenNotFound) {
 		return response(http.StatusNotFound, map[string]string{"error": "token not found"})
 	}
 	if err != nil {

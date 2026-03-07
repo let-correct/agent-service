@@ -9,7 +9,8 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	awsdynamo "github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	awskms "github.com/aws/aws-sdk-go-v2/service/kms"
-	dynamoAdapter "github.com/troysnowden/agent-service/internal/adapters/dynamodb"
+	dynamostate "github.com/troysnowden/agent-service/internal/adapters/dynamodb/oauth2/state"
+	dynamotoken "github.com/troysnowden/agent-service/internal/adapters/dynamodb/oauth2/token"
 	arthurOAuth "github.com/troysnowden/agent-service/internal/adapters/oauth2/arthur"
 	googleOAuth "github.com/troysnowden/agent-service/internal/adapters/oauth2/google"
 	"github.com/troysnowden/agent-service/internal/application"
@@ -41,8 +42,8 @@ func main() {
 	dynamoClient := awsdynamo.NewFromConfig(awsCfg)
 	kmsClient := awskms.NewFromConfig(awsCfg)
 
-	stateRepo := dynamoAdapter.NewStateRepository(dynamoClient, cfg.StateTableName)
-	tokenRepo := dynamoAdapter.NewTokenRepository(dynamoClient, kmsClient, cfg.TokenTableName, cfg.KMSKeyARN)
+	stateRepo := dynamostate.NewRepository(dynamoClient, cfg.StateTableName)
+	tokenRepo := dynamotoken.NewRepository(dynamoClient, kmsClient, cfg.TokenTableName, cfg.KMSKeyARN)
 
 	googleClient := googleOAuth.NewClient(cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.GoogleRedirectURL)
 	arthurClient := arthurOAuth.NewClient(cfg.ArthurClientID, cfg.ArthurClientSecret, cfg.ArthurRedirectURL, cfg.ArthurAuthURL, cfg.ArthurTokenURL)

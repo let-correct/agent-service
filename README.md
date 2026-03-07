@@ -101,6 +101,38 @@ sequenceDiagram
 
 ---
 
+### 4. Getting a Valid Token (Internal Services)
+
+Internal services call this endpoint to retrieve a valid access token for a given agent and provider. The service transparently refreshes the token if it is near expiry or expired, persisting the new token before returning it. Authentication is via AWS IAM (SigV4 signing) — no Cognito JWT required.
+
+```mermaid
+sequenceDiagram
+    participant Service as Internal Service
+    participant APIGW as API Gateway
+    participant Lambda
+    participant DynamoDB
+    participant Provider as OAuth Provider
+
+    Service->>APIGW: GET token
+    APIGW->>APIGW: Verify IAM signature (403 if invalid)
+    APIGW->>Lambda: Forward request
+    Lambda->>DynamoDB: Find token by email + provider
+    DynamoDB-->>Lambda: Token (or not found)
+
+    alt Token not found
+        Lambda-->>Service: 404 Not Found
+    else Token is fresh
+        Lambda-->>Service: 200 { access_token, expires_at }
+    else Token near expiry or expired
+        Lambda->>Provider: Refresh token
+        Provider-->>Lambda: New access token + refresh token
+        Lambda->>DynamoDB: Save refreshed token
+        Lambda-->>Service: 200 { access_token, expires_at }
+    end
+```
+
+---
+
 ## Lambdas
 
 ### Auth Lambda (`cmd/auth`)
@@ -132,12 +164,26 @@ Exchanges the provider auth code for OAuth tokens and persists them. The agent e
 | **Response 400** | `{ "error": "unsupported provider" }` or `{ "error": "invalid or expired state" }` |
 | **Response 401** | JWT missing, invalid, or expired (rejected by API Gateway before Lambda) |
 
+#### `GET /tokens/{provider}`
+
+Returns a valid access token for the given agent and provider. Transparently refreshes the token if it is near expiry or expired. Intended for internal service-to-service use only — authenticated via AWS IAM (SigV4).
+
+| | |
+|---|---|
+| **Auth** | AWS IAM (SigV4) |
+| **Path param** | `provider` — the OAuth provider (e.g. `google`) |
+| **Query param** | `email` — the agent's email address |
+| **Response 200** | `{ "access_token": "...", "expires_at": "<RFC3339>" }` |
+| **Response 400** | `{ "error": "missing email query parameter" }` or `{ "error": "unsupported provider" }` |
+| **Response 403** | IAM signature missing or invalid (rejected by API Gateway before Lambda) |
+| **Response 404** | `{ "error": "token not found" }` — agent has not completed OAuth flow for this provider |
+
 ---
 
 ## Infrastructure
 
-- **AWS API Gateway v2 (HTTP API)** — routes requests, enforces JWT auth via Cognito authorizer
-- **AWS Lambda** — handles `GET /auth/{provider}` and `POST /auth/{provider}/callback`
+- **AWS API Gateway v2 (HTTP API)** — routes requests, enforces JWT auth via Cognito authorizer for agent routes and IAM auth for internal routes
+- **AWS Lambda** — handles `GET /auth/{provider}`, `POST /auth/{provider}/callback`, and `GET /tokens/{provider}`
 - **AWS Cognito** — agent identity, Google Workspace SSO federation
 - **AWS DynamoDB** — stores OAuth state tokens and provider access/refresh tokens
 - **Terraform** — all infrastructure managed as code, deployed via Terraform Cloud

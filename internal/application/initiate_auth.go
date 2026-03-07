@@ -7,6 +7,7 @@ import (
 	"errors"
 
 	"github.com/troysnowden/agent-service/internal/domain/oauth2"
+	oauthstate "github.com/troysnowden/agent-service/internal/domain/oauth2/state"
 )
 
 var ErrUnsupportedProvider = errors.New("unsupported provider")
@@ -21,10 +22,10 @@ type InitiateAuthResult struct {
 
 type InitiateAuth struct {
 	clients map[oauth2.ProviderID]oauth2.Client
-	states  oauth2.StateRepository
+	states  oauthstate.Repository
 }
 
-func NewInitiateAuth(clients map[oauth2.ProviderID]oauth2.Client, states oauth2.StateRepository) *InitiateAuth {
+func NewInitiateAuth(clients map[oauth2.ProviderID]oauth2.Client, states oauthstate.Repository) *InitiateAuth {
 	return &InitiateAuth{clients: clients, states: states}
 }
 

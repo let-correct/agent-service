@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"github.com/troysnowden/agent-service/internal/domain/oauth2"
+	oauthstate "github.com/troysnowden/agent-service/internal/domain/oauth2/state"
+	oauthtoken "github.com/troysnowden/agent-service/internal/domain/oauth2/token"
 )
 
 type ExchangeCodeCommand struct {
@@ -19,11 +21,11 @@ func NewExchangeCodeCommand(email string, provider oauth2.ProviderID, code, stat
 
 type ExchangeCode struct {
 	clients map[oauth2.ProviderID]oauth2.Client
-	tokens  oauth2.TokenRepository
-	states  oauth2.StateRepository
+	tokens  oauthtoken.Repository
+	states  oauthstate.Repository
 }
 
-func NewExchangeCode(clients map[oauth2.ProviderID]oauth2.Client, repository oauth2.TokenRepository, states oauth2.StateRepository) *ExchangeCode {
+func NewExchangeCode(clients map[oauth2.ProviderID]oauth2.Client, repository oauthtoken.Repository, states oauthstate.Repository) *ExchangeCode {
 	return &ExchangeCode{clients: clients, tokens: repository, states: states}
 }
 

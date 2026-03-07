@@ -1,4 +1,4 @@
-package dynamodb
+package calendarsync
 
 import (
 	"context"
@@ -9,20 +9,20 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-	"github.com/troysnowden/agent-service/internal/domain/calendar"
+	domain "github.com/troysnowden/agent-service/internal/domain/calendar/sync"
 )
 
-type SyncRepository struct {
+type Repository struct {
 	dynamo    *dynamodb.Client
 	tableName string
 }
 
-func NewSyncRepository(dynamo *dynamodb.Client, tableName string) *SyncRepository {
-	return &SyncRepository{dynamo: dynamo, tableName: tableName}
+func NewRepository(dynamo *dynamodb.Client, tableName string) *Repository {
+	return &Repository{dynamo: dynamo, tableName: tableName}
 }
 
-func (r *SyncRepository) FindAll(ctx context.Context) ([]*calendar.Sync, error) {
-	var syncs []*calendar.Sync
+func (r *Repository) FindAll(ctx context.Context) ([]*domain.Sync, error) {
+	var syncs []*domain.Sync
 	var lastKey map[string]types.AttributeValue
 
 	for {
@@ -52,7 +52,7 @@ func (r *SyncRepository) FindAll(ctx context.Context) ([]*calendar.Sync, error) 
 	return syncs, nil
 }
 
-func (r *SyncRepository) Save(ctx context.Context, sync *calendar.Sync) error {
+func (r *Repository) Save(ctx context.Context, sync *domain.Sync) error {
 	_, err := r.dynamo.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: aws.String(r.tableName),
 		Item: map[string]types.AttributeValue{
@@ -69,7 +69,7 @@ func (r *SyncRepository) Save(ctx context.Context, sync *calendar.Sync) error {
 	return nil
 }
 
-func itemToSync(item map[string]types.AttributeValue) (*calendar.Sync, error) {
+func itemToSync(item map[string]types.AttributeValue) (*domain.Sync, error) {
 	email := item["email"].(*types.AttributeValueMemberS).Value
 	calendarID := item["calendar_id"].(*types.AttributeValueMemberS).Value
 	syncToken := item["sync_token"].(*types.AttributeValueMemberS).Value
@@ -84,5 +84,5 @@ func itemToSync(item map[string]types.AttributeValue) (*calendar.Sync, error) {
 		lastSyncedAt = time.Unix(lastSyncedAtUnix, 0)
 	}
 
-	return calendar.NewSync(email, calendarID, syncToken, lastSyncedAt), nil
+	return domain.NewSync(email, calendarID, syncToken, lastSyncedAt), nil
 }

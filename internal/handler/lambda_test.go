@@ -12,7 +12,8 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/troysnowden/agent-service/internal/application"
-	"github.com/troysnowden/agent-service/internal/domain/oauth2"
+	oauthstate "github.com/troysnowden/agent-service/internal/domain/oauth2/state"
+	oauthtoken "github.com/troysnowden/agent-service/internal/domain/oauth2/token"
 )
 
 var errInternal = errors.New("something went wrong")
@@ -150,7 +151,7 @@ func TestHandleExchangeCode(t *testing.T) {
 			name:       "invalid state returns 400",
 			email:      "user@example.com",
 			body:       validBody,
-			exchanger:  &mockCodeExchanger{err: oauth2.ErrStateNotFound},
+			exchanger:  &mockCodeExchanger{err: oauthstate.ErrStateNotFound},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
@@ -225,7 +226,7 @@ func TestHandleGetToken(t *testing.T) {
 		{
 			name:       "token not found returns 404",
 			email:      "user@example.com",
-			getter:     &mockTokenGetter{err: oauth2.ErrTokenNotFound},
+			getter:     &mockTokenGetter{err: oauthtoken.ErrTokenNotFound},
 			wantStatus: http.StatusNotFound,
 		},
 		{

@@ -1,4 +1,4 @@
-package application
+package oauth2
 
 import (
 	"context"
@@ -6,14 +6,13 @@ import (
 	"encoding/base64"
 	"errors"
 
-	"github.com/troysnowden/agent-service/internal/domain/oauth2"
-	oauthstate "github.com/troysnowden/agent-service/internal/domain/oauth2/state"
+	oauth2domain "github.com/troysnowden/agent-service/internal/domain/oauth2"
 )
 
 var ErrUnsupportedProvider = errors.New("unsupported provider")
 
 type InitiateAuthCommand struct {
-	provider oauth2.ProviderID
+	provider oauth2domain.ProviderID
 }
 
 type InitiateAuthResult struct {
@@ -21,15 +20,15 @@ type InitiateAuthResult struct {
 }
 
 type InitiateAuth struct {
-	clients map[oauth2.ProviderID]oauth2.Client
-	states  oauthstate.Repository
+	clients map[oauth2domain.ProviderID]oauth2domain.Client
+	states  oauth2domain.StateRepository
 }
 
-func NewInitiateAuth(clients map[oauth2.ProviderID]oauth2.Client, states oauthstate.Repository) *InitiateAuth {
+func NewInitiateAuth(clients map[oauth2domain.ProviderID]oauth2domain.Client, states oauth2domain.StateRepository) *InitiateAuth {
 	return &InitiateAuth{clients: clients, states: states}
 }
 
-func NewInitiateAuthCommand(provider oauth2.ProviderID) InitiateAuthCommand {
+func NewInitiateAuthCommand(provider oauth2domain.ProviderID) InitiateAuthCommand {
 	return InitiateAuthCommand{provider: provider}
 }
 

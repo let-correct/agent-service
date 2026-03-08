@@ -1,19 +1,18 @@
-package application
+package oauth2
 
 import (
 	"context"
 	"time"
 
-	"github.com/troysnowden/agent-service/internal/domain/oauth2"
-	oauthtoken "github.com/troysnowden/agent-service/internal/domain/oauth2/token"
+	oauth2domain "github.com/troysnowden/agent-service/internal/domain/oauth2"
 )
 
 type GetTokenCommand struct {
 	email    string
-	provider oauth2.ProviderID
+	provider oauth2domain.ProviderID
 }
 
-func NewGetTokenCommand(email string, provider oauth2.ProviderID) GetTokenCommand {
+func NewGetTokenCommand(email string, provider oauth2domain.ProviderID) GetTokenCommand {
 	return GetTokenCommand{email: email, provider: provider}
 }
 
@@ -23,11 +22,11 @@ type GetTokenResult struct {
 }
 
 type GetToken struct {
-	clients map[oauth2.ProviderID]oauth2.Client
-	tokens  oauthtoken.Repository
+	clients map[oauth2domain.ProviderID]oauth2domain.Client
+	tokens  oauth2domain.TokenRepository
 }
 
-func NewGetToken(clients map[oauth2.ProviderID]oauth2.Client, tokens oauthtoken.Repository) *GetToken {
+func NewGetToken(clients map[oauth2domain.ProviderID]oauth2domain.Client, tokens oauth2domain.TokenRepository) *GetToken {
 	return &GetToken{clients: clients, tokens: tokens}
 }
 

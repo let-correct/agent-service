@@ -1,36 +1,36 @@
-package application
+package oauth2
 
 import (
 	"context"
 	"errors"
 	"testing"
 
-	"github.com/troysnowden/agent-service/internal/domain/oauth2"
+	oauth2domain "github.com/troysnowden/agent-service/internal/domain/oauth2"
 )
 
 func TestInitiateAuth_Handle(t *testing.T) {
 	tests := []struct {
-		name        string
-		provider    oauth2.ProviderID
-		stateErr    error
-		wantErr     error
-		wantURL     bool
-		wantSaved   bool
+		name      string
+		provider  oauth2domain.ProviderID
+		stateErr  error
+		wantErr   error
+		wantURL   bool
+		wantSaved bool
 	}{
 		{
 			name:      "returns authorization URL for known provider",
-			provider:  oauth2.ProviderGoogle,
+			provider:  oauth2domain.ProviderGoogle,
 			wantURL:   true,
 			wantSaved: true,
 		},
 		{
-			name:    "unknown provider returns ErrUnsupportedProvider without touching state repo",
-			provider: oauth2.ProviderID("unknown"),
+			name:     "unknown provider returns ErrUnsupportedProvider without touching state repo",
+			provider: oauth2domain.ProviderID("unknown"),
 			wantErr:  ErrUnsupportedProvider,
 		},
 		{
 			name:     "state repo failure is returned",
-			provider: oauth2.ProviderGoogle,
+			provider: oauth2domain.ProviderGoogle,
 			stateErr: errors.New("dynamodb unavailable"),
 			wantErr:  errors.New("dynamodb unavailable"),
 		},
@@ -40,8 +40,8 @@ func TestInitiateAuth_Handle(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			states := &mockStateRepo{saveErr: tt.stateErr}
 			client := &mockClient{authURL: "https://auth.example.com/authorize?state=x"}
-			clients := map[oauth2.ProviderID]oauth2.Client{
-				oauth2.ProviderGoogle: client,
+			clients := map[oauth2domain.ProviderID]oauth2domain.Client{
+				oauth2domain.ProviderGoogle: client,
 			}
 
 			h := NewInitiateAuth(clients, states)
@@ -68,7 +68,6 @@ func TestInitiateAuth_Handle(t *testing.T) {
 			if tt.wantSaved && states.saved == "" {
 				t.Error("expected state to be saved, but it was not")
 			}
-			// State passed to client matches state that was saved.
 			if client.receivedState != states.saved {
 				t.Errorf("state saved %q differs from state passed to client %q", states.saved, client.receivedState)
 			}

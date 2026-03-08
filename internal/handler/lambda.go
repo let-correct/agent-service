@@ -10,22 +10,20 @@ import (
 	"time"
 
 	"github.com/aws/aws-lambda-go/events"
-	"github.com/troysnowden/agent-service/internal/application"
+	apioauth2 "github.com/troysnowden/agent-service/internal/application/oauth2"
 	"github.com/troysnowden/agent-service/internal/domain/oauth2"
-	oauthstate "github.com/troysnowden/agent-service/internal/domain/oauth2/state"
-	oauthtoken "github.com/troysnowden/agent-service/internal/domain/oauth2/token"
 )
 
 type authInitiator interface {
-	Handle(ctx context.Context, cmd application.InitiateAuthCommand) (application.InitiateAuthResult, error)
+	Handle(ctx context.Context, cmd apioauth2.InitiateAuthCommand) (apioauth2.InitiateAuthResult, error)
 }
 
 type codeExchanger interface {
-	Handle(ctx context.Context, cmd application.ExchangeCodeCommand) error
+	Handle(ctx context.Context, cmd apioauth2.ExchangeCodeCommand) error
 }
 
 type tokenGetter interface {
-	Handle(ctx context.Context, cmd application.GetTokenCommand) (application.GetTokenResult, error)
+	Handle(ctx context.Context, cmd apioauth2.GetTokenCommand) (apioauth2.GetTokenResult, error)
 }
 
 type Handler struct {
@@ -65,8 +63,8 @@ func (h *Handler) Handle(ctx context.Context, req events.APIGatewayV2HTTPRequest
 func (h *Handler) handleInitiateAuth(ctx context.Context, req events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
 	provider := oauth2.ProviderID(req.PathParameters["provider"])
 
-	result, err := h.initiateAuth.Handle(ctx, application.NewInitiateAuthCommand(provider))
-	if errors.Is(err, application.ErrUnsupportedProvider) {
+	result, err := h.initiateAuth.Handle(ctx, apioauth2.NewInitiateAuthCommand(provider))
+	if errors.Is(err, apioauth2.ErrUnsupportedProvider) {
 		return response(http.StatusBadRequest, map[string]string{"error": "unsupported provider"})
 	}
 	if err != nil {
@@ -95,12 +93,12 @@ func (h *Handler) handleExchangeCode(ctx context.Context, req events.APIGatewayV
 		return response(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 	}
 
-	cmd := application.NewExchangeCodeCommand(email, provider, body.Code, body.State)
+	cmd := apioauth2.NewExchangeCodeCommand(email, provider, body.Code, body.State)
 	err := h.exchangeCode.Handle(ctx, cmd)
-	if errors.Is(err, application.ErrUnsupportedProvider) {
+	if errors.Is(err, apioauth2.ErrUnsupportedProvider) {
 		return response(http.StatusBadRequest, map[string]string{"error": "unsupported provider"})
 	}
-	if errors.Is(err, oauthstate.ErrStateNotFound) {
+	if errors.Is(err, oauth2.ErrStateNotFound) {
 		return response(http.StatusBadRequest, map[string]string{"error": "invalid or expired state"})
 	}
 	if err != nil {
@@ -124,11 +122,11 @@ func (h *Handler) handleGetToken(ctx context.Context, req events.APIGatewayV2HTT
 		return response(http.StatusBadRequest, map[string]string{"error": "missing email query parameter"})
 	}
 
-	result, err := h.getToken.Handle(ctx, application.NewGetTokenCommand(email, provider))
-	if errors.Is(err, application.ErrUnsupportedProvider) {
+	result, err := h.getToken.Handle(ctx, apioauth2.NewGetTokenCommand(email, provider))
+	if errors.Is(err, apioauth2.ErrUnsupportedProvider) {
 		return response(http.StatusBadRequest, map[string]string{"error": "unsupported provider"})
 	}
-	if errors.Is(err, oauthtoken.ErrTokenNotFound) {
+	if errors.Is(err, oauth2.ErrTokenNotFound) {
 		return response(http.StatusNotFound, map[string]string{"error": "token not found"})
 	}
 	if err != nil {

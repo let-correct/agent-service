@@ -11,9 +11,8 @@ import (
 	"time"
 
 	"github.com/aws/aws-lambda-go/events"
-	"github.com/troysnowden/agent-service/internal/application"
-	oauthstate "github.com/troysnowden/agent-service/internal/domain/oauth2/state"
-	oauthtoken "github.com/troysnowden/agent-service/internal/domain/oauth2/token"
+	apioauth2 "github.com/troysnowden/agent-service/internal/application/oauth2"
+	"github.com/troysnowden/agent-service/internal/domain/oauth2"
 )
 
 var errInternal = errors.New("something went wrong")
@@ -21,26 +20,26 @@ var errInternal = errors.New("something went wrong")
 // -- mocks --
 
 type mockAuthInitiator struct {
-	result application.InitiateAuthResult
+	result apioauth2.InitiateAuthResult
 	err    error
 }
 
-func (m *mockAuthInitiator) Handle(_ context.Context, _ application.InitiateAuthCommand) (application.InitiateAuthResult, error) {
+func (m *mockAuthInitiator) Handle(_ context.Context, _ apioauth2.InitiateAuthCommand) (apioauth2.InitiateAuthResult, error) {
 	return m.result, m.err
 }
 
 type mockCodeExchanger struct{ err error }
 
-func (m *mockCodeExchanger) Handle(_ context.Context, _ application.ExchangeCodeCommand) error {
+func (m *mockCodeExchanger) Handle(_ context.Context, _ apioauth2.ExchangeCodeCommand) error {
 	return m.err
 }
 
 type mockTokenGetter struct {
-	result application.GetTokenResult
+	result apioauth2.GetTokenResult
 	err    error
 }
 
-func (m *mockTokenGetter) Handle(_ context.Context, _ application.GetTokenCommand) (application.GetTokenResult, error) {
+func (m *mockTokenGetter) Handle(_ context.Context, _ apioauth2.GetTokenCommand) (apioauth2.GetTokenResult, error) {
 	return m.result, m.err
 }
 
@@ -68,13 +67,13 @@ func TestHandleInitiateAuth(t *testing.T) {
 	}{
 		{
 			name:       "success returns 200 with url",
-			initiator:  &mockAuthInitiator{result: application.InitiateAuthResult{URL: "https://auth.example.com/authorize"}},
+			initiator:  &mockAuthInitiator{result: apioauth2.InitiateAuthResult{URL: "https://auth.example.com/authorize"}},
 			wantStatus: http.StatusOK,
 			wantURL:    "https://auth.example.com/authorize",
 		},
 		{
 			name:       "unsupported provider returns 400",
-			initiator:  &mockAuthInitiator{err: application.ErrUnsupportedProvider},
+			initiator:  &mockAuthInitiator{err: apioauth2.ErrUnsupportedProvider},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
@@ -144,14 +143,14 @@ func TestHandleExchangeCode(t *testing.T) {
 			name:       "unsupported provider returns 400",
 			email:      "user@example.com",
 			body:       validBody,
-			exchanger:  &mockCodeExchanger{err: application.ErrUnsupportedProvider},
+			exchanger:  &mockCodeExchanger{err: apioauth2.ErrUnsupportedProvider},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "invalid state returns 400",
 			email:      "user@example.com",
 			body:       validBody,
-			exchanger:  &mockCodeExchanger{err: oauthstate.ErrStateNotFound},
+			exchanger:  &mockCodeExchanger{err: oauth2.ErrStateNotFound},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
@@ -192,7 +191,7 @@ func TestHandleExchangeCode(t *testing.T) {
 }
 
 func TestHandleGetToken(t *testing.T) {
-	validResult := application.GetTokenResult{
+	validResult := apioauth2.GetTokenResult{
 		AccessToken: "access-abc",
 		ExpiresAt:   time.Now().Add(time.Hour),
 	}
@@ -220,13 +219,13 @@ func TestHandleGetToken(t *testing.T) {
 		{
 			name:       "unsupported provider returns 400",
 			email:      "user@example.com",
-			getter:     &mockTokenGetter{err: application.ErrUnsupportedProvider},
+			getter:     &mockTokenGetter{err: apioauth2.ErrUnsupportedProvider},
 			wantStatus: http.StatusBadRequest,
 		},
 		{
 			name:       "token not found returns 404",
 			email:      "user@example.com",
-			getter:     &mockTokenGetter{err: oauthtoken.ErrTokenNotFound},
+			getter:     &mockTokenGetter{err: oauth2.ErrTokenNotFound},
 			wantStatus: http.StatusNotFound,
 		},
 		{

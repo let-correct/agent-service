@@ -1,6 +1,17 @@
 package oauth2
 
-import "time"
+import (
+	"context"
+	"errors"
+	"time"
+)
+
+var ErrTokenNotFound = errors.New("token not found")
+
+type TokenRepository interface {
+	Save(ctx context.Context, token *Token) error
+	FindByEmailAndProvider(ctx context.Context, email string, provider ProviderID) (*Token, error)
+}
 
 type ProviderID string
 

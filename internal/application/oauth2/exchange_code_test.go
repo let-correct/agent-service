@@ -1,63 +1,48 @@
-package application
+package oauth2
 
 import (
 	"context"
 	"errors"
 	"testing"
 
-	"github.com/troysnowden/agent-service/internal/domain/oauth2"
-	oauthstate "github.com/troysnowden/agent-service/internal/domain/oauth2/state"
+	oauth2domain "github.com/troysnowden/agent-service/internal/domain/oauth2"
 )
-
-type mockTokenRepo struct {
-	saved   bool
-	saveErr error
-}
-
-func (m *mockTokenRepo) Save(_ context.Context, _ *oauth2.Token) error {
-	m.saved = true
-	return m.saveErr
-}
-
-func (m *mockTokenRepo) FindByEmailAndProvider(_ context.Context, _ string, _ oauth2.ProviderID) (*oauth2.Token, error) {
-	return nil, nil
-}
 
 func TestExchangeCode_Handle(t *testing.T) {
 	tests := []struct {
 		name        string
-		provider    oauth2.ProviderID
+		provider    oauth2domain.ProviderID
 		consumeErr  error
 		exchangeErr error
 		saveErr     error
 		wantErr     error
-		// behavioural assertions
+
 		wantConsumed  bool
 		wantExchanged bool
 		wantSaved     bool
 	}{
 		{
 			name:          "success: state consumed, token exchanged and saved",
-			provider:      oauth2.ProviderGoogle,
+			provider:      oauth2domain.ProviderGoogle,
 			wantConsumed:  true,
 			wantExchanged: true,
 			wantSaved:     true,
 		},
 		{
 			name:     "unknown provider returns ErrUnsupportedProvider without touching state or client",
-			provider: oauth2.ProviderID("unknown"),
+			provider: oauth2domain.ProviderID("unknown"),
 			wantErr:  ErrUnsupportedProvider,
 		},
 		{
 			name:         "invalid state aborts before exchange",
-			provider:     oauth2.ProviderGoogle,
-			consumeErr:   oauthstate.ErrStateNotFound,
-			wantErr:      oauthstate.ErrStateNotFound,
+			provider:     oauth2domain.ProviderGoogle,
+			consumeErr:   oauth2domain.ErrStateNotFound,
+			wantErr:      oauth2domain.ErrStateNotFound,
 			wantConsumed: true,
 		},
 		{
 			name:          "client exchange failure is returned without saving token",
-			provider:      oauth2.ProviderGoogle,
+			provider:      oauth2domain.ProviderGoogle,
 			exchangeErr:   errors.New("provider rejected code"),
 			wantErr:       errors.New("provider rejected code"),
 			wantConsumed:  true,
@@ -65,7 +50,7 @@ func TestExchangeCode_Handle(t *testing.T) {
 		},
 		{
 			name:          "token repo failure is returned",
-			provider:      oauth2.ProviderGoogle,
+			provider:      oauth2domain.ProviderGoogle,
 			saveErr:       errors.New("dynamodb unavailable"),
 			wantErr:       errors.New("dynamodb unavailable"),
 			wantConsumed:  true,
@@ -79,8 +64,8 @@ func TestExchangeCode_Handle(t *testing.T) {
 			states := &mockStateRepo{consumeErr: tt.consumeErr}
 			tokens := &mockTokenRepo{saveErr: tt.saveErr}
 			client := &mockClient{exchangeErr: tt.exchangeErr}
-			clients := map[oauth2.ProviderID]oauth2.Client{
-				oauth2.ProviderGoogle: client,
+			clients := map[oauth2domain.ProviderID]oauth2domain.Client{
+				oauth2domain.ProviderGoogle: client,
 			}
 
 			h := NewExchangeCode(clients, tokens, states)

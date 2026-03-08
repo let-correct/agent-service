@@ -32,10 +32,8 @@ func (g *googleCalendarService) ListEvents(ctx context.Context, calendarID, sync
 	call := g.svc.Events.List(calendarID).Context(ctx).SingleEvents(true)
 	if syncToken != "" {
 		call = call.SyncToken(syncToken)
-	} else if !timeMin.IsZero() {
-		call = call.TimeMin(timeMin.Format(time.RFC3339))
 	} else {
-		call = call.TimeMin(time.Now().Add(-eventBuffer).UTC().Format(time.RFC3339))
+		call = call.TimeMin(timeMin.Format(time.RFC3339))
 	}
 
 	var items []*calendar.Event

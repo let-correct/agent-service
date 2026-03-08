@@ -18,10 +18,14 @@ const (
 
 type Client struct {
 	calendarService func(ctx context.Context, accessToken string) (CalendarService, error)
+	now             func() time.Time
 }
 
 func NewClient() *Client {
-	return &Client{calendarService: newGoogleCalendarService}
+	return &Client{
+		calendarService: newGoogleCalendarService,
+		now:             time.Now,
+	}
 }
 
 func (c *Client) SyncEvents(ctx context.Context, email, accessToken, calendarID, syncToken string, lastSyncedAt time.Time) ([]calendarsync.Event, string, error) {
@@ -30,7 +34,12 @@ func (c *Client) SyncEvents(ctx context.Context, email, accessToken, calendarID,
 		return nil, "", err
 	}
 
-	items, newSyncToken, err := svc.ListEvents(ctx, calendarID, syncToken, lastSyncedAt)
+	timeMin := lastSyncedAt
+	if syncToken == "" && timeMin.IsZero() {
+		timeMin = c.now().Add(-eventBuffer).UTC()
+	}
+
+	items, newSyncToken, err := svc.ListEvents(ctx, calendarID, syncToken, timeMin)
 	if err != nil {
 		var apiErr *googleapi.Error
 		if errors.As(err, &apiErr) && apiErr.Code == 410 {
@@ -39,15 +48,16 @@ func (c *Client) SyncEvents(ctx context.Context, email, accessToken, calendarID,
 		return nil, "", err
 	}
 
+	now := c.now().UTC()
 	events := make([]calendarsync.Event, 0, len(items))
 	for _, item := range items {
-		events = append(events, mapEvent(item, email, calendarID))
+		events = append(events, mapEvent(item, email, calendarID, now))
 	}
 
 	return events, newSyncToken, nil
 }
 
-func mapEvent(item *calendar.Event, email, calendarID string) calendarsync.Event {
+func mapEvent(item *calendar.Event, email, calendarID string, now time.Time) calendarsync.Event {
 	detailType := calendarsync.DetailTypeCreated
 	if item.Status == "cancelled" {
 		detailType = calendarsync.DetailTypeCancelled
@@ -61,7 +71,7 @@ func mapEvent(item *calendar.Event, email, calendarID string) calendarsync.Event
 	return calendarsync.Event{
 		DetailType: detailType,
 		Metadata: calendarsync.EventMetadata{
-			Timestamp:     time.Now().UTC(),
+			Timestamp:     now,
 			Source:        source,
 			SchemaVersion: schemaVersion,
 			CorrelationID: item.Id,

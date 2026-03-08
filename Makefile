@@ -1,5 +1,8 @@
 test:
 	go test ./...
 
-push-image-to-ecr:
-	./scripts/push-to-ecr.sh $$(git rev-parse --short HEAD)
+push-auth:
+	./scripts/push-to-ecr.sh $$(git rev-parse --short HEAD) auth
+
+push-all:
+	push-auth

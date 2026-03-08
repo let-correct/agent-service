@@ -7,7 +7,7 @@ resource "aws_lambda_function" "auth_lambda" {
   role          = aws_iam_role.auth_lambda.arn
 
   package_type  = "Image"
-  image_uri     = "${aws_ecr_repository.auth_lambda_ecr.repository_url}:latest"
+  image_uri     = "${aws_ecr_repository.auth_ecr.repository_url}:latest"
   architectures = ["arm64"]
 
   memory_size = 128

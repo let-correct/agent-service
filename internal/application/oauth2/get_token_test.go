@@ -1,4 +1,4 @@
-package application
+package oauth2
 
 import (
 	"context"
@@ -6,63 +6,25 @@ import (
 	"testing"
 	"time"
 
-	"github.com/troysnowden/agent-service/internal/domain/oauth2"
-	oauthtoken "github.com/troysnowden/agent-service/internal/domain/oauth2/token"
+	oauth2domain "github.com/troysnowden/agent-service/internal/domain/oauth2"
 )
-
-type mockGetTokenRepo struct {
-	findToken *oauth2.Token
-	findErr   error
-	saved     bool
-	saveErr   error
-}
-
-func (m *mockGetTokenRepo) Save(_ context.Context, _ *oauth2.Token) error {
-	m.saved = true
-	return m.saveErr
-}
-
-func (m *mockGetTokenRepo) FindByEmailAndProvider(_ context.Context, _ string, _ oauth2.ProviderID) (*oauth2.Token, error) {
-	return m.findToken, m.findErr
-}
-
-type mockGetTokenClient struct {
-	refreshCalled bool
-	refreshResult *oauth2.Token
-	refreshErr    error
-}
-
-func (m *mockGetTokenClient) AuthorizationURL(_ context.Context, _ string) string { return "" }
-func (m *mockGetTokenClient) ExchangeCode(_ context.Context, _, _ string) (*oauth2.Token, error) {
-	return nil, nil
-}
-func (m *mockGetTokenClient) RefreshToken(_ context.Context, token *oauth2.Token) (*oauth2.Token, error) {
-	m.refreshCalled = true
-	if m.refreshErr != nil {
-		return nil, m.refreshErr
-	}
-	if m.refreshResult != nil {
-		return m.refreshResult, nil
-	}
-	return token, nil
-}
 
 func TestGetToken_Handle(t *testing.T) {
 	now := time.Now()
-	freshToken := oauth2.NewToken("user@example.com", oauth2.ProviderGoogle, "fresh-access", "refresh", now.Add(time.Hour))
-	nearExpiryToken := oauth2.NewToken("user@example.com", oauth2.ProviderGoogle, "stale-access", "refresh", now.Add(2*time.Minute))
-	expiredToken := oauth2.NewToken("user@example.com", oauth2.ProviderGoogle, "old-access", "refresh", now.Add(-time.Hour))
-	refreshedToken := oauth2.NewToken("user@example.com", oauth2.ProviderGoogle, "new-access", "new-refresh", now.Add(time.Hour))
+	freshToken := oauth2domain.NewToken("user@example.com", oauth2domain.ProviderGoogle, "fresh-access", "refresh", now.Add(time.Hour))
+	nearExpiryToken := oauth2domain.NewToken("user@example.com", oauth2domain.ProviderGoogle, "stale-access", "refresh", now.Add(2*time.Minute))
+	expiredToken := oauth2domain.NewToken("user@example.com", oauth2domain.ProviderGoogle, "old-access", "refresh", now.Add(-time.Hour))
+	refreshedToken := oauth2domain.NewToken("user@example.com", oauth2domain.ProviderGoogle, "new-access", "new-refresh", now.Add(time.Hour))
 
 	tests := []struct {
 		name     string
-		provider oauth2.ProviderID
+		provider oauth2domain.ProviderID
 
-		findToken      *oauth2.Token
-		findErr        error
-		refreshResult  *oauth2.Token
-		refreshErr     error
-		saveErr        error
+		findToken     *oauth2domain.Token
+		findErr       error
+		refreshResult *oauth2domain.Token
+		refreshErr    error
+		saveErr       error
 
 		wantErr           error
 		wantAccessToken   string
@@ -71,13 +33,13 @@ func TestGetToken_Handle(t *testing.T) {
 	}{
 		{
 			name:            "fresh token returned without refresh",
-			provider:        oauth2.ProviderGoogle,
+			provider:        oauth2domain.ProviderGoogle,
 			findToken:       freshToken,
 			wantAccessToken: "fresh-access",
 		},
 		{
 			name:              "near-expiry token is refreshed, saved, and returned",
-			provider:          oauth2.ProviderGoogle,
+			provider:          oauth2domain.ProviderGoogle,
 			findToken:         nearExpiryToken,
 			refreshResult:     refreshedToken,
 			wantRefreshCalled: true,
@@ -86,7 +48,7 @@ func TestGetToken_Handle(t *testing.T) {
 		},
 		{
 			name:              "expired token is refreshed and returned",
-			provider:          oauth2.ProviderGoogle,
+			provider:          oauth2domain.ProviderGoogle,
 			findToken:         expiredToken,
 			refreshResult:     refreshedToken,
 			wantRefreshCalled: true,
@@ -95,24 +57,24 @@ func TestGetToken_Handle(t *testing.T) {
 		},
 		{
 			name:     "unknown provider returns ErrUnsupportedProvider without I/O",
-			provider: oauth2.ProviderID("unknown"),
+			provider: oauth2domain.ProviderID("unknown"),
 			wantErr:  ErrUnsupportedProvider,
 		},
 		{
 			name:     "token not found returns ErrTokenNotFound",
-			provider: oauth2.ProviderGoogle,
-			findErr:  oauthtoken.ErrTokenNotFound,
-			wantErr:  oauthtoken.ErrTokenNotFound,
+			provider: oauth2domain.ProviderGoogle,
+			findErr:  oauth2domain.ErrTokenNotFound,
+			wantErr:  oauth2domain.ErrTokenNotFound,
 		},
 		{
 			name:     "repo find failure is propagated",
-			provider: oauth2.ProviderGoogle,
+			provider: oauth2domain.ProviderGoogle,
 			findErr:  errors.New("dynamodb unavailable"),
 			wantErr:  errors.New("dynamodb unavailable"),
 		},
 		{
 			name:              "refresh failure is returned without saving",
-			provider:          oauth2.ProviderGoogle,
+			provider:          oauth2domain.ProviderGoogle,
 			findToken:         nearExpiryToken,
 			refreshErr:        errors.New("provider rejected refresh"),
 			wantErr:           errors.New("provider rejected refresh"),
@@ -120,7 +82,7 @@ func TestGetToken_Handle(t *testing.T) {
 		},
 		{
 			name:              "save failure after refresh is returned",
-			provider:          oauth2.ProviderGoogle,
+			provider:          oauth2domain.ProviderGoogle,
 			findToken:         nearExpiryToken,
 			refreshResult:     refreshedToken,
 			saveErr:           errors.New("dynamodb write failed"),
@@ -132,9 +94,9 @@ func TestGetToken_Handle(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client := &mockGetTokenClient{refreshResult: tt.refreshResult, refreshErr: tt.refreshErr}
-			tokens := &mockGetTokenRepo{findToken: tt.findToken, findErr: tt.findErr, saveErr: tt.saveErr}
-			clients := map[oauth2.ProviderID]oauth2.Client{oauth2.ProviderGoogle: client}
+			client := &mockClient{refreshResult: tt.refreshResult, refreshErr: tt.refreshErr}
+			tokens := &mockTokenRepo{findToken: tt.findToken, findErr: tt.findErr, saveErr: tt.saveErr}
+			clients := map[oauth2domain.ProviderID]oauth2domain.Client{oauth2domain.ProviderGoogle: client}
 
 			h := NewGetToken(clients, tokens)
 			result, err := h.Handle(context.Background(), NewGetTokenCommand("user@example.com", tt.provider))

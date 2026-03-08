@@ -1,31 +1,29 @@
-package application
+package oauth2
 
 import (
 	"context"
 
-	"github.com/troysnowden/agent-service/internal/domain/oauth2"
-	oauthstate "github.com/troysnowden/agent-service/internal/domain/oauth2/state"
-	oauthtoken "github.com/troysnowden/agent-service/internal/domain/oauth2/token"
+	oauth2domain "github.com/troysnowden/agent-service/internal/domain/oauth2"
 )
 
 type ExchangeCodeCommand struct {
 	email    string
-	provider oauth2.ProviderID
+	provider oauth2domain.ProviderID
 	code     string
 	state    string
 }
 
-func NewExchangeCodeCommand(email string, provider oauth2.ProviderID, code, state string) ExchangeCodeCommand {
+func NewExchangeCodeCommand(email string, provider oauth2domain.ProviderID, code, state string) ExchangeCodeCommand {
 	return ExchangeCodeCommand{email: email, provider: provider, code: code, state: state}
 }
 
 type ExchangeCode struct {
-	clients map[oauth2.ProviderID]oauth2.Client
-	tokens  oauthtoken.Repository
-	states  oauthstate.Repository
+	clients map[oauth2domain.ProviderID]oauth2domain.Client
+	tokens  oauth2domain.TokenRepository
+	states  oauth2domain.StateRepository
 }
 
-func NewExchangeCode(clients map[oauth2.ProviderID]oauth2.Client, repository oauthtoken.Repository, states oauthstate.Repository) *ExchangeCode {
+func NewExchangeCode(clients map[oauth2domain.ProviderID]oauth2domain.Client, repository oauth2domain.TokenRepository, states oauth2domain.StateRepository) *ExchangeCode {
 	return &ExchangeCode{clients: clients, tokens: repository, states: states}
 }
 

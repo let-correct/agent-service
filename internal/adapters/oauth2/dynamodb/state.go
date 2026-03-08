@@ -1,4 +1,4 @@
-package state
+package dynamodb
 
 import (
 	"context"
@@ -10,21 +10,21 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
-	oauthstate "github.com/troysnowden/agent-service/internal/domain/oauth2/state"
+	"github.com/troysnowden/agent-service/internal/domain/oauth2"
 )
 
 const stateTTL = 10 * time.Minute
 
-type Repository struct {
+type StateRepository struct {
 	dynamo    *dynamodb.Client
 	tableName string
 }
 
-func NewRepository(dynamo *dynamodb.Client, tableName string) *Repository {
-	return &Repository{dynamo: dynamo, tableName: tableName}
+func NewStateRepository(dynamo *dynamodb.Client, tableName string) *StateRepository {
+	return &StateRepository{dynamo: dynamo, tableName: tableName}
 }
 
-func (r *Repository) Save(ctx context.Context, state string) error {
+func (r *StateRepository) Save(ctx context.Context, state string) error {
 	expiresAt := strconv.FormatInt(time.Now().Add(stateTTL).Unix(), 10)
 	_, err := r.dynamo.PutItem(ctx, &dynamodb.PutItemInput{
 		TableName: aws.String(r.tableName),
@@ -39,7 +39,7 @@ func (r *Repository) Save(ctx context.Context, state string) error {
 	return nil
 }
 
-func (r *Repository) Consume(ctx context.Context, state string) error {
+func (r *StateRepository) Consume(ctx context.Context, state string) error {
 	_, err := r.dynamo.DeleteItem(ctx, &dynamodb.DeleteItemInput{
 		TableName: aws.String(r.tableName),
 		Key: map[string]types.AttributeValue{
@@ -50,7 +50,7 @@ func (r *Repository) Consume(ctx context.Context, state string) error {
 	if err != nil {
 		var ccf *types.ConditionalCheckFailedException
 		if errors.As(err, &ccf) {
-			return oauthstate.ErrStateNotFound
+			return oauth2.ErrStateNotFound
 		}
 		return fmt.Errorf("consuming state: %w", err)
 	}

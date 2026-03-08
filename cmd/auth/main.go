@@ -9,11 +9,10 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	awsdynamo "github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	awskms "github.com/aws/aws-sdk-go-v2/service/kms"
-	dynamostate "github.com/troysnowden/agent-service/internal/adapters/dynamodb/oauth2/state"
-	dynamotoken "github.com/troysnowden/agent-service/internal/adapters/dynamodb/oauth2/token"
+	oauth2dynamo "github.com/troysnowden/agent-service/internal/adapters/oauth2/dynamodb"
 	arthurOAuth "github.com/troysnowden/agent-service/internal/adapters/oauth2/arthur"
 	googleOAuth "github.com/troysnowden/agent-service/internal/adapters/oauth2/google"
-	"github.com/troysnowden/agent-service/internal/application"
+	apioauth2 "github.com/troysnowden/agent-service/internal/application/oauth2"
 	"github.com/troysnowden/agent-service/internal/config"
 	"github.com/troysnowden/agent-service/internal/domain/oauth2"
 	"github.com/troysnowden/agent-service/internal/handler"
@@ -42,8 +41,8 @@ func main() {
 	dynamoClient := awsdynamo.NewFromConfig(awsCfg)
 	kmsClient := awskms.NewFromConfig(awsCfg)
 
-	stateRepo := dynamostate.NewRepository(dynamoClient, cfg.StateTableName)
-	tokenRepo := dynamotoken.NewRepository(dynamoClient, kmsClient, cfg.TokenTableName, cfg.KMSKeyARN)
+	stateRepo := oauth2dynamo.NewStateRepository(dynamoClient, cfg.StateTableName)
+	tokenRepo := oauth2dynamo.NewTokenRepository(dynamoClient, kmsClient, cfg.TokenTableName, cfg.KMSKeyARN)
 
 	googleClient := googleOAuth.NewClient(cfg.GoogleClientID, cfg.GoogleClientSecret, cfg.GoogleRedirectURL)
 	arthurClient := arthurOAuth.NewClient(cfg.ArthurClientID, cfg.ArthurClientSecret, cfg.ArthurRedirectURL, cfg.ArthurAuthURL, cfg.ArthurTokenURL)
@@ -53,9 +52,9 @@ func main() {
 		oauth2.ProviderArthur: arthurClient,
 	}
 
-	initiateAuth := application.NewInitiateAuth(clients, stateRepo)
-	exchangeCode := application.NewExchangeCode(clients, tokenRepo, stateRepo)
-	getToken := application.NewGetToken(clients, tokenRepo)
+	initiateAuth := apioauth2.NewInitiateAuth(clients, stateRepo)
+	exchangeCode := apioauth2.NewExchangeCode(clients, tokenRepo, stateRepo)
+	getToken := apioauth2.NewGetToken(clients, tokenRepo)
 
 	h := handler.New(logger, initiateAuth, exchangeCode, getToken)
 

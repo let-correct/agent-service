@@ -6,61 +6,42 @@ import (
 	"time"
 
 	calendarsync "github.com/troysnowden/agent-service/internal/domain/calendar/sync"
-	"golang.org/x/oauth2"
 	"google.golang.org/api/calendar/v3"
 	"google.golang.org/api/googleapi"
-	"google.golang.org/api/option"
 )
 
 const (
 	source        = "agent-service"
 	schemaVersion = "1.0"
+	eventBuffer   = time.Duration(24 * time.Hour)
 )
 
-type Client struct{}
-
-func NewClient() *Client {
-	return &Client{}
+type Client struct {
+	calendarService func(ctx context.Context, accessToken string) (CalendarService, error)
 }
 
-func (c *Client) SyncEvents(
-	ctx context.Context,
-	email, accessToken, calendarID, syncToken string,
-	lastSyncedAt time.Time,
-) ([]calendarsync.Event, string, error) {
-	tokenSource := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: accessToken})
-	httpClient := oauth2.NewClient(ctx, tokenSource)
+func NewClient() *Client {
+	return &Client{calendarService: newGoogleCalendarService}
+}
 
-	svc, err := calendar.NewService(ctx, option.WithHTTPClient(httpClient))
+func (c *Client) SyncEvents(ctx context.Context, email, accessToken, calendarID, syncToken string, lastSyncedAt time.Time) ([]calendarsync.Event, string, error) {
+	svc, err := c.calendarService(ctx, accessToken)
 	if err != nil {
 		return nil, "", err
 	}
 
-	call := svc.Events.List(calendarID).Context(ctx).SingleEvents(true)
-	if syncToken != "" {
-		call = call.SyncToken(syncToken)
-	} else if !lastSyncedAt.IsZero() {
-		call = call.TimeMin(lastSyncedAt.Format(time.RFC3339))
-	} else {
-		call = call.TimeMin(time.Now().UTC().Format(time.RFC3339))
-	}
-
-	var events []calendarsync.Event
-	var newSyncToken string
-
-	err = call.Pages(ctx, func(page *calendar.Events) error {
-		newSyncToken = page.NextSyncToken
-		for _, item := range page.Items {
-			events = append(events, mapEvent(item, email, calendarID))
-		}
-		return nil
-	})
+	items, newSyncToken, err := svc.ListEvents(ctx, calendarID, syncToken, lastSyncedAt)
 	if err != nil {
 		var apiErr *googleapi.Error
 		if errors.As(err, &apiErr) && apiErr.Code == 410 {
 			return nil, "", calendarsync.ErrSyncTokenExpired
 		}
 		return nil, "", err
+	}
+
+	events := make([]calendarsync.Event, 0, len(items))
+	for _, item := range items {
+		events = append(events, mapEvent(item, email, calendarID))
 	}
 
 	return events, newSyncToken, nil

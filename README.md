@@ -29,13 +29,14 @@ sequenceDiagram
     UI->>Cognito: Exchange auth code for tokens
     Cognito-->>Cognito: Lookup token based on auth code
     Cognito-->>UI: Access token + refresh token
+    UI-->>Agent: Sign-in successful!
 ```
 
 ---
 
 ### 2. Authorising Access to Google Calendar
 
-Once authenticated, an agent authorises the service to access Google Calendar on their behalf. The service stores the resulting OAuth tokens in DynamoDB, keyed by the agent's email (sourced from their Cognito JWT — not caller-supplied).
+Once authenticated, an agent authorises the service to access Google Calendar on their behalf. The service stores the resulting OAuth tokens in DynamoDB, keyed by the agent's email (sourced from their Cognito JWT).
 
 ```mermaid
 sequenceDiagram
@@ -69,7 +70,7 @@ sequenceDiagram
 
 ### 3. Authorising Access to Arthur
 
-Once authenticated, an agent authorises the service to access Arthur on their behalf. The service stores the resulting OAuth tokens in DynamoDB, keyed by the agent's email (sourced from their Cognito JWT — not caller-supplied).
+Once authenticated, an agent authorises the service to access Arthur on their behalf. The service stores the resulting OAuth tokens in DynamoDB, keyed by the agent's email (sourced from their Cognito JWT).
 
 ```mermaid
 sequenceDiagram
@@ -103,7 +104,7 @@ sequenceDiagram
 
 ### 4. Getting a Valid Token (Internal Services)
 
-Internal services call this endpoint to retrieve a valid access token for a given agent and provider. The service transparently refreshes the token if it is near expiry or expired, persisting the new token before returning it. Authentication is via AWS IAM (SigV4 signing) — no Cognito JWT required.
+Internal services call this endpoint to retrieve a valid access token for a given agent and provider. The service transparently refreshes the token if it is near expiry or expired, persisting the new token before returning it. Authentication is via AWS IAM (SigV4 signing).
 
 ```mermaid
 sequenceDiagram

@@ -15,7 +15,7 @@ import (
 	apioauth2 "github.com/troysnowden/agent-service/internal/application/oauth2"
 	"github.com/troysnowden/agent-service/internal/config"
 	"github.com/troysnowden/agent-service/internal/domain/oauth2"
-	"github.com/troysnowden/agent-service/internal/handler"
+	"github.com/troysnowden/agent-service/internal/handler/auth"
 )
 
 func main() {
@@ -56,7 +56,7 @@ func main() {
 	exchangeCode := apioauth2.NewExchangeCode(clients, tokenRepo, stateRepo)
 	getToken := apioauth2.NewGetToken(clients, tokenRepo)
 
-	h := handler.New(logger, initiateAuth, exchangeCode, getToken)
+	h := auth.New(logger, initiateAuth, exchangeCode, getToken)
 
 	lambda.StartWithOptions(
 		h.Handle,

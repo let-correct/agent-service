@@ -108,3 +108,128 @@ resource "aws_cloudwatch_log_group" "auth_lambda" {
   retention_in_days = 30
   tags              = var.tags
 }
+
+###############################################################################
+# Calendar Sync Worker Lambda Function
+###############################################################################
+
+resource "aws_lambda_function" "calendar_sync_worker" {
+  function_name = "calendar-sync-worker"
+  role          = aws_iam_role.calendar_sync_worker.arn
+
+  package_type  = "Image"
+  image_uri     = "${aws_ecr_repository.calendar_sync_worker_ecr.repository_url}:latest"
+  architectures = ["arm64"]
+
+  memory_size = 256
+  timeout     = 30
+
+  kms_key_arn = aws_kms_key.oauth_tokens.arn
+
+  environment {
+    variables = {
+      LOG_LEVEL        = var.log_level
+      TOKEN_TABLE_NAME = aws_dynamodb_table.oauth_tokens.name
+      KMS_KEY_ARN      = aws_kms_key.oauth_tokens.arn
+      SYNC_TABLE_NAME  = aws_dynamodb_table.google_calendar_sync_tokens.name
+      EVENT_BUS_NAME   = aws_cloudwatch_event_bus.let_correct.name
+    }
+  }
+
+  logging_config {
+    log_format = "JSON"
+    log_group  = aws_cloudwatch_log_group.calendar_sync_worker.name
+  }
+
+  tags = var.tags
+
+  depends_on = [
+    aws_iam_role_policy_attachment.calendar_sync_worker_basic_execution,
+    aws_cloudwatch_log_group.calendar_sync_worker,
+  ]
+}
+
+resource "aws_lambda_event_source_mapping" "calendar_sync_worker_sqs" {
+  event_source_arn                   = aws_sqs_queue.calendar_sync_worker.arn
+  function_name                      = aws_lambda_function.calendar_sync_worker.arn
+  batch_size                         = 10
+  maximum_batching_window_in_seconds = 30
+  function_response_types            = ["ReportBatchItemFailures"]
+}
+
+###############################################################################
+# IAM — Calendar Sync Worker Execution Role
+###############################################################################
+
+data "aws_iam_policy_document" "calendar_sync_worker" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "calendar_sync_worker" {
+  name               = "calendar-sync-worker-execution-role"
+  assume_role_policy = data.aws_iam_policy_document.calendar_sync_worker.json
+  tags               = var.tags
+}
+
+resource "aws_iam_role_policy_attachment" "calendar_sync_worker_basic_execution" {
+  role       = aws_iam_role.calendar_sync_worker.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy" "calendar_sync_worker_permissions" {
+  name = "calendar-sync-worker-permissions"
+  role = aws_iam_role.calendar_sync_worker.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem"]
+        Resource = aws_dynamodb_table.oauth_tokens.arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:PutItem"]
+        Resource = aws_dynamodb_table.google_calendar_sync_tokens.arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt"]
+        Resource = aws_kms_key.oauth_tokens.arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["events:PutEvents"]
+        Resource = aws_cloudwatch_event_bus.let_correct.arn
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "sqs:ReceiveMessage",
+          "sqs:DeleteMessage",
+          "sqs:GetQueueAttributes",
+        ]
+        Resource = aws_sqs_queue.calendar_sync_worker.arn
+      },
+    ]
+  })
+}
+
+###############################################################################
+# CloudWatch Log Group
+###############################################################################
+
+resource "aws_cloudwatch_log_group" "calendar_sync_worker" {
+  name              = "/aws/lambda/calendar_sync_worker"
+  retention_in_days = 30
+  tags              = var.tags
+}

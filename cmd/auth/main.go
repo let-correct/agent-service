@@ -9,17 +9,17 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	awsdynamo "github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	awskms "github.com/aws/aws-sdk-go-v2/service/kms"
-	oauth2dynamo "github.com/troysnowden/agent-service/internal/adapters/oauth2/dynamodb"
 	arthurOAuth "github.com/troysnowden/agent-service/internal/adapters/oauth2/arthur"
+	oauth2dynamo "github.com/troysnowden/agent-service/internal/adapters/oauth2/dynamodb"
 	googleOAuth "github.com/troysnowden/agent-service/internal/adapters/oauth2/google"
 	apioauth2 "github.com/troysnowden/agent-service/internal/application/oauth2"
 	"github.com/troysnowden/agent-service/internal/config"
 	"github.com/troysnowden/agent-service/internal/domain/oauth2"
-	"github.com/troysnowden/agent-service/internal/handler"
+	"github.com/troysnowden/agent-service/internal/handler/auth"
 )
 
 func main() {
-	cfg, err := config.Load()
+	cfg, err := config.LoadAuth()
 	if err != nil {
 		slog.Error("failed to load config", "error", err)
 		os.Exit(1)
@@ -56,7 +56,7 @@ func main() {
 	exchangeCode := apioauth2.NewExchangeCode(clients, tokenRepo, stateRepo)
 	getToken := apioauth2.NewGetToken(clients, tokenRepo)
 
-	h := handler.New(logger, initiateAuth, exchangeCode, getToken)
+	h := auth.New(logger, initiateAuth, exchangeCode, getToken)
 
 	lambda.StartWithOptions(
 		h.Handle,

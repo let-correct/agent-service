@@ -1,7 +1,9 @@
 package calendarsync
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -27,3 +29,27 @@ func (s *Sync) Email() string           { return s.email }
 func (s *Sync) CalendarID() string      { return s.calendarID }
 func (s *Sync) SyncToken() string       { return s.syncToken }
 func (s *Sync) LastSyncedAt() time.Time { return s.lastSyncedAt }
+
+// called by json.Unmarshal
+func (s *Sync) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		Email        string `json:"email"`
+		CalendarID   string `json:"calendar_id"`
+		SyncToken    string `json:"sync_token"`
+		LastSyncedAt string `json:"last_synced_at"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if raw.LastSyncedAt != "" {
+		t, err := time.Parse(time.RFC3339, raw.LastSyncedAt)
+		if err != nil {
+			return fmt.Errorf("parse last_synced_at: %w", err)
+		}
+		s.lastSyncedAt = t
+	}
+	s.email = raw.Email
+	s.calendarID = raw.CalendarID
+	s.syncToken = raw.SyncToken
+	return nil
+}

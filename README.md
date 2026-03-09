@@ -16,6 +16,7 @@ sequenceDiagram
     participant UI as UI
     participant Cognito as AWS Cognito
     participant Google as Google Workspace
+    participant PreTokenGen as Pre-Token Gen Lambda
 
     Agent->>UI: Click "Sign in with Google"
     UI->>Cognito: Initiate authorisation
@@ -28,6 +29,8 @@ sequenceDiagram
     Cognito-->>UI: Redirect to callback_url with auth code
     UI->>Cognito: Exchange auth code for tokens
     Cognito-->>Cognito: Lookup token based on auth code
+    Cognito->>PreTokenGen: Invoke before issuing access token
+    PreTokenGen-->>Cognito: Inject email claim into access token
     Cognito-->>UI: Access token + refresh token
     UI-->>Agent: Sign-in successful!
 ```
@@ -136,6 +139,12 @@ sequenceDiagram
 
 ## Lambdas
 
+### Cognito Pre-Token Generation Lambda (`cmd/cognito-pre-token-gen`)
+
+Cognito Pre-Token Generation V2 trigger. Invoked by Cognito before issuing an access token, it injects the `email` claim so it is available to the auth Lambda via the API Gateway JWT authorizer.
+
+---
+
 ### Auth Lambda (`cmd/auth`)
 
 Handles provider OAuth flows on behalf of authenticated agents. All routes require a valid Cognito JWT (`Authorization: Bearer <token>`).
@@ -187,4 +196,6 @@ Returns a valid access token for the given agent and provider. Transparently ref
 - **AWS Lambda** — handles `GET /auth/{provider}`, `POST /auth/{provider}/callback`, and `GET /tokens/{provider}`
 - **AWS Cognito** — agent identity, Google Workspace SSO federation
 - **AWS DynamoDB** — stores OAuth state tokens and provider access/refresh tokens
+- **AWS SQS** — queues calendar sync jobs for the calendar sync worker, with a dead-letter queue for failed messages
+- **AWS EventBridge** — event bus for publishing events within the Let Correct platform
 - **Terraform** — all infrastructure managed as code, deployed via Terraform Cloud

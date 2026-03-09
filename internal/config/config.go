@@ -21,3 +21,16 @@ func Load() (OauthLambdaConfig, error) {
 	var cfg OauthLambdaConfig
 	return cfg, env.Parse(&cfg)
 }
+
+type CalendarSyncWorkerConfig struct {
+	LogLevel       string `env:"LOG_LEVEL"         envDefault:"INFO"`
+	TokenTableName string `env:"TOKEN_TABLE_NAME,required"`
+	KMSKeyARN      string `env:"KMS_KEY_ARN,required"`
+	SyncTableName  string `env:"SYNC_TABLE_NAME,required"`
+	EventBusName   string `env:"EVENT_BUS_NAME,required"`
+}
+
+func LoadCalendarSyncWorker() (CalendarSyncWorkerConfig, error) {
+	var cfg CalendarSyncWorkerConfig
+	return cfg, env.Parse(&cfg)
+}

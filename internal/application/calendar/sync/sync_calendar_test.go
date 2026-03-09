@@ -7,6 +7,7 @@ import (
 	"time"
 
 	domain "github.com/troysnowden/agent-service/internal/domain/calendar/sync"
+	"github.com/troysnowden/agent-service/internal/domain/oauth2"
 )
 
 // -- mocks --
@@ -57,17 +58,31 @@ func (m *mockSyncRepository) Save(_ context.Context, sync *domain.Sync) error {
 	return m.err
 }
 
+type mockTokenRepository struct {
+	token *oauth2.Token
+	err   error
+}
+
+func (m *mockTokenRepository) FindByEmail(_ context.Context, _ string) (*oauth2.Token, error) {
+	return m.token, m.err
+}
+
 // -- helpers --
 
-func newTestUseCase(client *mockCalendarClient, pub *mockPublisher, repo *mockSyncRepository, now func() time.Time) *SyncCalendar {
-	return &SyncCalendar{client: client, publisher: pub, syncs: repo, now: now}
+func newTestUseCase(client *mockCalendarClient, pub *mockPublisher, repo *mockSyncRepository, tokens *mockTokenRepository, now func() time.Time) *SyncCalendar {
+	return &SyncCalendar{client: client, publisher: pub, syncs: repo, tokens: tokens, now: now}
+}
+
+func defaultTokenRepo() *mockTokenRepository {
+	return &mockTokenRepository{
+		token: oauth2.NewToken("agent@example.com", oauth2.ProviderGoogle, "access-tok", "refresh-tok", time.Now().Add(time.Hour)),
+	}
 }
 
 func baseCmd() SyncCommand {
 	return SyncCommand{
-		Email:       "agent@example.com",
-		CalendarID:  "cal123",
-		AccessToken: "access-tok",
+		Email:      "agent@example.com",
+		CalendarID: "cal123",
 	}
 }
 
@@ -80,16 +95,17 @@ func TestSyncCalendar_Handle(t *testing.T) {
 	anEvent := domain.Event{DetailType: domain.DetailTypeCreated}
 
 	tests := []struct {
-		name              string
-		cmd               SyncCommand
-		clientResponses   []syncEventsResponse
-		publishErr        error
-		saveErr           error
-		wantErr           error
-		wantClientCalls   []syncEventsCall
+		name               string
+		cmd                SyncCommand
+		tokenRepo          *mockTokenRepository
+		clientResponses    []syncEventsResponse
+		publishErr         error
+		saveErr            error
+		wantErr            error
+		wantClientCalls    []syncEventsCall
 		wantPublishedCount int
-		wantSavedToken    string
-		wantSavedAt       time.Time
+		wantSavedToken     string
+		wantSavedAt        time.Time
 	}{
 		{
 			name: "happy path: syncs, publishes, and saves",
@@ -105,11 +121,18 @@ func TestSyncCalendar_Handle(t *testing.T) {
 			wantSavedAt:        fixedTime.UTC(),
 		},
 		{
+			name: "token repository error is returned",
+			cmd:  baseCmd(),
+			tokenRepo: &mockTokenRepository{
+				err: errors.New("token not found"),
+			},
+			wantErr: errors.New("find token: token not found"),
+		},
+		{
 			name: "with syncToken: passes it through and uses lastSyncedAt as timeMin",
 			cmd: SyncCommand{
 				Email:        "agent@example.com",
 				CalendarID:   "cal123",
-				AccessToken:  "access-tok",
 				SyncToken:    "existing-tok",
 				LastSyncedAt: fixedTime.Add(-48 * time.Hour),
 			},
@@ -127,7 +150,6 @@ func TestSyncCalendar_Handle(t *testing.T) {
 			cmd: SyncCommand{
 				Email:        "agent@example.com",
 				CalendarID:   "cal123",
-				AccessToken:  "access-tok",
 				LastSyncedAt: fixedTime.Add(-48 * time.Hour),
 			},
 			clientResponses: []syncEventsResponse{
@@ -154,10 +176,9 @@ func TestSyncCalendar_Handle(t *testing.T) {
 		{
 			name: "expired sync token: retries with empty token and now minus eventBuffer",
 			cmd: SyncCommand{
-				Email:       "agent@example.com",
-				CalendarID:  "cal123",
-				AccessToken: "access-tok",
-				SyncToken:   "stale-tok",
+				Email:      "agent@example.com",
+				CalendarID: "cal123",
+				SyncToken:  "stale-tok",
 			},
 			clientResponses: []syncEventsResponse{
 				{err: domain.ErrSyncTokenExpired},
@@ -182,8 +203,8 @@ func TestSyncCalendar_Handle(t *testing.T) {
 			wantSavedAt:        fixedTime.UTC(),
 		},
 		{
-			name:    "SyncEvents error is returned",
-			cmd:     baseCmd(),
+			name: "SyncEvents error is returned",
+			cmd:  baseCmd(),
 			clientResponses: []syncEventsResponse{
 				{err: errors.New("api error")},
 			},
@@ -192,10 +213,9 @@ func TestSyncCalendar_Handle(t *testing.T) {
 		{
 			name: "expired token retry error is returned",
 			cmd: SyncCommand{
-				Email:       "agent@example.com",
-				CalendarID:  "cal123",
-				AccessToken: "access-tok",
-				SyncToken:   "stale-tok",
+				Email:      "agent@example.com",
+				CalendarID: "cal123",
+				SyncToken:  "stale-tok",
 			},
 			clientResponses: []syncEventsResponse{
 				{err: domain.ErrSyncTokenExpired},
@@ -225,10 +245,14 @@ func TestSyncCalendar_Handle(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			tokenRepo := tt.tokenRepo
+			if tokenRepo == nil {
+				tokenRepo = defaultTokenRepo()
+			}
 			client := &mockCalendarClient{responses: tt.clientResponses}
 			pub := &mockPublisher{err: tt.publishErr}
 			repo := &mockSyncRepository{err: tt.saveErr}
-			uc := newTestUseCase(client, pub, repo, fixedNow)
+			uc := newTestUseCase(client, pub, repo, tokenRepo, fixedNow)
 
 			err := uc.Handle(context.Background(), tt.cmd)
 

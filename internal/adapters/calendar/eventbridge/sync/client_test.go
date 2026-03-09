@@ -3,10 +3,13 @@ package calendarsync
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/eventbridge"
+	ebtypes "github.com/aws/aws-sdk-go-v2/service/eventbridge/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -81,16 +84,6 @@ func TestPublish(t *testing.T) {
 			wantErrSubstr: "put events",
 		},
 		{
-			name:   "failed entries returns error",
-			events: []domain.Event{sampleEvent(domain.DetailTypeCreated, source, "evt1")},
-			setupMock: func(m *mockEventbridgeClient) {
-				m.On("PutEvents", mock.Anything, mock.Anything).
-					Return(&eventbridge.PutEventsOutput{FailedEntryCount: 1}, nil)
-			},
-			wantErr:       true,
-			wantErrSubstr: "1 events failed to publish",
-		},
-		{
 			name:   "single event is published successfully",
 			events: []domain.Event{sampleEvent(domain.DetailTypeCreated, source, "evt1")},
 			setupMock: func(m *mockEventbridgeClient) {
@@ -99,11 +92,13 @@ func TestPublish(t *testing.T) {
 						*input.Entries[0].DetailType == string(domain.DetailTypeCreated) &&
 						*input.Entries[0].EventBusName == busName &&
 						*input.Entries[0].Source == source
-				})).Return(&eventbridge.PutEventsOutput{FailedEntryCount: 0}, nil)
+				})).Return(&eventbridge.PutEventsOutput{
+					Entries: []ebtypes.PutEventsResultEntry{{EventId: aws.String("id-1")}},
+				}, nil)
 			},
 		},
 		{
-			name: "multiple events are sent in a single PutEvents call",
+			name: "events within batch size are sent in a single PutEvents call",
 			events: []domain.Event{
 				sampleEvent(domain.DetailTypeCreated, source, "evt1"),
 				sampleEvent(domain.DetailTypeCancelled, source, "evt2"),
@@ -111,7 +106,94 @@ func TestPublish(t *testing.T) {
 			setupMock: func(m *mockEventbridgeClient) {
 				m.On("PutEvents", mock.Anything, mock.MatchedBy(func(input *eventbridge.PutEventsInput) bool {
 					return len(input.Entries) == 2
-				})).Return(&eventbridge.PutEventsOutput{FailedEntryCount: 0}, nil)
+				})).Return(&eventbridge.PutEventsOutput{
+					Entries: []ebtypes.PutEventsResultEntry{
+						{EventId: aws.String("id-1")},
+						{EventId: aws.String("id-2")},
+					},
+				}, nil)
+			},
+		},
+		{
+			name: "events exceeding batch size are chunked into multiple PutEvents calls",
+			events: func() []domain.Event {
+				evts := make([]domain.Event, 11)
+				for i := range evts {
+					evts[i] = sampleEvent(domain.DetailTypeCreated, source, fmt.Sprintf("evt%d", i+1))
+				}
+				return evts
+			}(),
+			setupMock: func(m *mockEventbridgeClient) {
+				successEntries := func(n int) []ebtypes.PutEventsResultEntry {
+					out := make([]ebtypes.PutEventsResultEntry, n)
+					for i := range out {
+						out[i] = ebtypes.PutEventsResultEntry{EventId: aws.String(fmt.Sprintf("id-%d", i+1))}
+					}
+					return out
+				}
+				m.On("PutEvents", mock.Anything, mock.MatchedBy(func(input *eventbridge.PutEventsInput) bool {
+					return len(input.Entries) == 10
+				})).Return(&eventbridge.PutEventsOutput{Entries: successEntries(10)}, nil).Once()
+				m.On("PutEvents", mock.Anything, mock.MatchedBy(func(input *eventbridge.PutEventsInput) bool {
+					return len(input.Entries) == 1
+				})).Return(&eventbridge.PutEventsOutput{Entries: successEntries(1)}, nil).Once()
+			},
+		},
+		{
+			name: "failed entries that persist beyond max retries return an error",
+			events: []domain.Event{
+				sampleEvent(domain.DetailTypeCreated, source, "evt1"),
+				sampleEvent(domain.DetailTypeCreated, source, "evt2"),
+			},
+			setupMock: func(m *mockEventbridgeClient) {
+				persistentFailure := &eventbridge.PutEventsOutput{
+					FailedEntryCount: 1,
+					Entries: []ebtypes.PutEventsResultEntry{
+						{EventId: aws.String("id-1")},
+						{ErrorCode: aws.String("ThrottlingException"), ErrorMessage: aws.String("rate exceeded")},
+					},
+				}
+				// All 3 attempts fail on the second entry.
+				m.On("PutEvents", mock.Anything, mock.MatchedBy(func(input *eventbridge.PutEventsInput) bool {
+					return len(input.Entries) == 2
+				})).Return(persistentFailure, nil).Once()
+				m.On("PutEvents", mock.Anything, mock.MatchedBy(func(input *eventbridge.PutEventsInput) bool {
+					return len(input.Entries) == 1
+				})).Return(&eventbridge.PutEventsOutput{
+					FailedEntryCount: 1,
+					Entries: []ebtypes.PutEventsResultEntry{
+						{ErrorCode: aws.String("ThrottlingException"), ErrorMessage: aws.String("rate exceeded")},
+					},
+				}, nil).Times(2)
+			},
+			wantErr:       true,
+			wantErrSubstr: "1 events failed after 3 attempts",
+		},
+		{
+			name: "failed entries within a batch are retried until they succeed",
+			events: []domain.Event{
+				sampleEvent(domain.DetailTypeCreated, source, "evt1"),
+				sampleEvent(domain.DetailTypeCreated, source, "evt2"),
+				sampleEvent(domain.DetailTypeCreated, source, "evt3"),
+			},
+			setupMock: func(m *mockEventbridgeClient) {
+				// First attempt: middle entry fails.
+				m.On("PutEvents", mock.Anything, mock.MatchedBy(func(input *eventbridge.PutEventsInput) bool {
+					return len(input.Entries) == 3
+				})).Return(&eventbridge.PutEventsOutput{
+					FailedEntryCount: 1,
+					Entries: []ebtypes.PutEventsResultEntry{
+						{EventId: aws.String("id-1")},
+						{ErrorCode: aws.String("ThrottlingException"), ErrorMessage: aws.String("rate exceeded")},
+						{EventId: aws.String("id-3")},
+					},
+				}, nil).Once()
+				// Retry: only the one failed entry, succeeds.
+				m.On("PutEvents", mock.Anything, mock.MatchedBy(func(input *eventbridge.PutEventsInput) bool {
+					return len(input.Entries) == 1
+				})).Return(&eventbridge.PutEventsOutput{
+					Entries: []ebtypes.PutEventsResultEntry{{EventId: aws.String("id-2")}},
+				}, nil).Once()
 			},
 		},
 	}

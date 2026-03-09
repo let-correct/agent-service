@@ -9,15 +9,15 @@ import (
 	"time"
 
 	"github.com/aws/aws-lambda-go/events"
-	apicalendarsync "github.com/troysnowden/agent-service/internal/application/calendar/sync"
+	calendarsync "github.com/troysnowden/agent-service/internal/application/calendar/sync"
 )
 
 type mockCalendarSyncer struct {
-	calledWith []apicalendarsync.SyncCommand
+	calledWith []calendarsync.SyncCommand
 	err        error
 }
 
-func (m *mockCalendarSyncer) Handle(_ context.Context, cmd apicalendarsync.SyncCommand) error {
+func (m *mockCalendarSyncer) Handle(_ context.Context, cmd calendarsync.SyncCommand) error {
 	m.calledWith = append(m.calledWith, cmd)
 	return m.err
 }
@@ -36,7 +36,7 @@ func TestHandle(t *testing.T) {
 		records           []events.SQSMessage
 		syncerErr         error
 		wantBatchFailures []string
-		wantSyncCommands  []apicalendarsync.SyncCommand
+		wantSyncCommands  []calendarsync.SyncCommand
 	}{
 		{
 			name:    "empty batch returns no failures",
@@ -45,25 +45,24 @@ func TestHandle(t *testing.T) {
 		{
 			name: "single valid record maps all fields to sync command",
 			records: []events.SQSMessage{
-				sqsRecord("msg-1", `{"email":"agent@example.com","calendar_id":"cal123","sync_token":"tok-abc","last_synced_at":"2024-01-15T12:00:00Z","access_token":"access-xyz"}`),
+				sqsRecord("msg-1", `{"email":"agent@example.com","calendar_id":"cal123","sync_token":"tok-abc","last_synced_at":"2024-01-15T12:00:00Z"}`),
 			},
-			wantSyncCommands: []apicalendarsync.SyncCommand{
+			wantSyncCommands: []calendarsync.SyncCommand{
 				{
 					Email:        "agent@example.com",
 					CalendarID:   "cal123",
 					SyncToken:    "tok-abc",
 					LastSyncedAt: fixedTime,
-					AccessToken:  "access-xyz",
 				},
 			},
 		},
 		{
 			name: "empty last_synced_at maps to zero time",
 			records: []events.SQSMessage{
-				sqsRecord("msg-1", `{"email":"agent@example.com","calendar_id":"cal123","access_token":"access-xyz"}`),
+				sqsRecord("msg-1", `{"email":"agent@example.com","calendar_id":"cal123"}`),
 			},
-			wantSyncCommands: []apicalendarsync.SyncCommand{
-				{Email: "agent@example.com", CalendarID: "cal123", AccessToken: "access-xyz"},
+			wantSyncCommands: []calendarsync.SyncCommand{
+				{Email: "agent@example.com", CalendarID: "cal123"},
 			},
 		},
 		{
@@ -83,25 +82,25 @@ func TestHandle(t *testing.T) {
 		{
 			name: "syncer error reports batch item failure",
 			records: []events.SQSMessage{
-				sqsRecord("msg-1", `{"email":"agent@example.com","calendar_id":"cal123","access_token":"tok"}`),
+				sqsRecord("msg-1", `{"email":"agent@example.com","calendar_id":"cal123"}`),
 			},
 			syncerErr:         errors.New("sync failed"),
 			wantBatchFailures: []string{"msg-1"},
-			wantSyncCommands: []apicalendarsync.SyncCommand{
-				{Email: "agent@example.com", CalendarID: "cal123", AccessToken: "tok"},
+			wantSyncCommands: []calendarsync.SyncCommand{
+				{Email: "agent@example.com", CalendarID: "cal123"},
 			},
 		},
 		{
 			name: "partial failure reports only failed record",
 			records: []events.SQSMessage{
-				sqsRecord("msg-1", `{"email":"a@example.com","calendar_id":"cal-a","access_token":"tok-a"}`),
+				sqsRecord("msg-1", `{"email":"a@example.com","calendar_id":"cal-a"}`),
 				sqsRecord("msg-2", `not-json`),
-				sqsRecord("msg-3", `{"email":"c@example.com","calendar_id":"cal-c","access_token":"tok-c"}`),
+				sqsRecord("msg-3", `{"email":"c@example.com","calendar_id":"cal-c"}`),
 			},
 			wantBatchFailures: []string{"msg-2"},
-			wantSyncCommands: []apicalendarsync.SyncCommand{
-				{Email: "a@example.com", CalendarID: "cal-a", AccessToken: "tok-a"},
-				{Email: "c@example.com", CalendarID: "cal-c", AccessToken: "tok-c"},
+			wantSyncCommands: []calendarsync.SyncCommand{
+				{Email: "a@example.com", CalendarID: "cal-a"},
+				{Email: "c@example.com", CalendarID: "cal-c"},
 			},
 		},
 	}
@@ -142,9 +141,6 @@ func TestHandle(t *testing.T) {
 				}
 				if !got.LastSyncedAt.Equal(want.LastSyncedAt) {
 					t.Errorf("SyncCommand[%d].LastSyncedAt: want %v, got %v", i, want.LastSyncedAt, got.LastSyncedAt)
-				}
-				if got.AccessToken != want.AccessToken {
-					t.Errorf("SyncCommand[%d].AccessToken: want %q, got %q", i, want.AccessToken, got.AccessToken)
 				}
 			}
 		})

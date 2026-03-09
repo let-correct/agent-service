@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"github.com/aws/aws-lambda-go/events"
-	apicalendarsync "github.com/troysnowden/agent-service/internal/application/calendar/sync"
+	calendarsync "github.com/troysnowden/agent-service/internal/application/calendar/sync"
 )
 
 type calendarSyncer interface {
-	Handle(ctx context.Context, cmd apicalendarsync.SyncCommand) error
+	Handle(ctx context.Context, cmd calendarsync.SyncCommand) error
 }
 
 type Handler struct {
@@ -25,7 +25,6 @@ type syncMessage struct {
 	CalendarID   string `json:"calendar_id"`
 	SyncToken    string `json:"sync_token"`
 	LastSyncedAt string `json:"last_synced_at"` // RFC3339, empty = zero time (full sync)
-	AccessToken  string `json:"access_token"`
 }
 
 func New(logger *slog.Logger, syncer calendarSyncer) *Handler {
@@ -65,11 +64,10 @@ func (h *Handler) processRecord(ctx context.Context, record events.SQSMessage) e
 		lastSyncedAt = t
 	}
 
-	return h.syncer.Handle(ctx, apicalendarsync.SyncCommand{
+	return h.syncer.Handle(ctx, calendarsync.SyncCommand{
 		Email:        msg.Email,
 		CalendarID:   msg.CalendarID,
 		SyncToken:    msg.SyncToken,
 		LastSyncedAt: lastSyncedAt,
-		AccessToken:  msg.AccessToken,
 	})
 }

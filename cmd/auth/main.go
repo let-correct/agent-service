@@ -9,8 +9,8 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	awsdynamo "github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	awskms "github.com/aws/aws-sdk-go-v2/service/kms"
-	oauth2dynamo "github.com/troysnowden/agent-service/internal/adapters/oauth2/dynamodb"
 	arthurOAuth "github.com/troysnowden/agent-service/internal/adapters/oauth2/arthur"
+	oauth2dynamo "github.com/troysnowden/agent-service/internal/adapters/oauth2/dynamodb"
 	googleOAuth "github.com/troysnowden/agent-service/internal/adapters/oauth2/google"
 	apioauth2 "github.com/troysnowden/agent-service/internal/application/oauth2"
 	"github.com/troysnowden/agent-service/internal/config"
@@ -19,7 +19,7 @@ import (
 )
 
 func main() {
-	cfg, err := config.Load()
+	cfg, err := config.LoadAuth()
 	if err != nil {
 		slog.Error("failed to load config", "error", err)
 		os.Exit(1)

@@ -2,7 +2,7 @@ package config
 
 import "github.com/caarlos0/env/v11"
 
-type OauthLambdaConfig struct {
+type AuthConfig struct {
 	LogLevel           string `env:"LOG_LEVEL"            envDefault:"INFO"`
 	StateTableName     string `env:"STATE_TABLE_NAME,required"`
 	TokenTableName     string `env:"TOKEN_TABLE_NAME,required"`
@@ -17,8 +17,8 @@ type OauthLambdaConfig struct {
 	ArthurTokenURL     string `env:"ARTHUR_TOKEN_URL,required"`
 }
 
-func Load() (OauthLambdaConfig, error) {
-	var cfg OauthLambdaConfig
+func LoadAuth() (AuthConfig, error) {
+	var cfg AuthConfig
 	return cfg, env.Parse(&cfg)
 }
 

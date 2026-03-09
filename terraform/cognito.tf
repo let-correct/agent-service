@@ -11,6 +11,13 @@ resource "aws_cognito_user_pool" "agents" {
     allow_admin_create_user_only = true
   }
 
+  lambda_config {
+    pre_token_generation_config {
+      lambda_arn     = aws_lambda_function.cognito_pre_token_gen.arn
+      lambda_version = "V2_0"
+    }
+  }
+
   tags = var.tags
 }
 

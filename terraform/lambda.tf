@@ -157,10 +157,6 @@ resource "aws_lambda_event_source_mapping" "calendar_sync_worker_sqs" {
   function_response_types            = ["ReportBatchItemFailures"]
 }
 
-###############################################################################
-# IAM — Calendar Sync Worker Execution Role
-###############################################################################
-
 data "aws_iam_policy_document" "calendar_sync_worker" {
   statement {
     effect  = "Allow"
@@ -224,12 +220,73 @@ resource "aws_iam_role_policy" "calendar_sync_worker_permissions" {
   })
 }
 
-###############################################################################
-# CloudWatch Log Group
-###############################################################################
-
 resource "aws_cloudwatch_log_group" "calendar_sync_worker" {
   name              = "/aws/lambda/calendar_sync_worker"
+  retention_in_days = 30
+  tags              = var.tags
+}
+
+###############################################################################
+# Cognito Pre-Token Generation Lambda
+###############################################################################
+
+resource "aws_lambda_function" "cognito_pre_token_gen" {
+  function_name = "cognito-pre-token-gen"
+  role          = aws_iam_role.cognito_pre_token_gen.arn
+
+  package_type  = "Image"
+  image_uri     = "${aws_ecr_repository.cognito_pre_token_gen_ecr.repository_url}:latest"
+  architectures = ["arm64"]
+
+  memory_size = 128
+  timeout     = 5
+
+  logging_config {
+    log_format = "JSON"
+    log_group  = aws_cloudwatch_log_group.cognito_pre_token_gen.name
+  }
+
+  tags = var.tags
+
+  depends_on = [
+    aws_iam_role_policy_attachment.cognito_pre_token_gen_basic_execution,
+    aws_cloudwatch_log_group.cognito_pre_token_gen,
+  ]
+}
+
+resource "aws_lambda_permission" "cognito_pre_token_gen" {
+  statement_id  = "AllowCognitoInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.cognito_pre_token_gen.function_name
+  principal     = "cognito-idp.amazonaws.com"
+  source_arn    = aws_cognito_user_pool.agents.arn
+}
+
+data "aws_iam_policy_document" "cognito_pre_token_gen" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "cognito_pre_token_gen" {
+  name               = "cognito-pre-token-gen-execution-role"
+  assume_role_policy = data.aws_iam_policy_document.cognito_pre_token_gen.json
+  tags               = var.tags
+}
+
+resource "aws_iam_role_policy_attachment" "cognito_pre_token_gen_basic_execution" {
+  role       = aws_iam_role.cognito_pre_token_gen.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_cloudwatch_log_group" "cognito_pre_token_gen" {
+  name              = "/aws/lambda/cognito_pre_token_gen"
   retention_in_days = 30
   tags              = var.tags
 }

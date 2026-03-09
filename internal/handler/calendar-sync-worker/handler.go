@@ -5,26 +5,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/aws/aws-lambda-go/events"
-	calendarsync "github.com/troysnowden/agent-service/internal/application/calendar/sync"
+	domain "github.com/troysnowden/agent-service/internal/domain/calendar/sync"
 )
 
 type calendarSyncer interface {
-	Handle(ctx context.Context, cmd calendarsync.SyncCommand) error
+	Handle(ctx context.Context, cmd *domain.Sync) error
 }
 
 type Handler struct {
 	logger *slog.Logger
 	syncer calendarSyncer
-}
-
-type syncMessage struct {
-	Email        string `json:"email"`
-	CalendarID   string `json:"calendar_id"`
-	SyncToken    string `json:"sync_token"`
-	LastSyncedAt string `json:"last_synced_at"` // RFC3339, empty = zero time (full sync)
 }
 
 func New(logger *slog.Logger, syncer calendarSyncer) *Handler {
@@ -50,24 +42,9 @@ func (h *Handler) Handle(ctx context.Context, event events.SQSEvent) (events.SQS
 }
 
 func (h *Handler) processRecord(ctx context.Context, record events.SQSMessage) error {
-	var msg syncMessage
-	if err := json.Unmarshal([]byte(record.Body), &msg); err != nil {
+	var sync domain.Sync
+	if err := json.Unmarshal([]byte(record.Body), &sync); err != nil {
 		return fmt.Errorf("unmarshal message: %w", err)
 	}
-
-	var lastSyncedAt time.Time
-	if msg.LastSyncedAt != "" {
-		t, err := time.Parse(time.RFC3339, msg.LastSyncedAt)
-		if err != nil {
-			return fmt.Errorf("parse last_synced_at: %w", err)
-		}
-		lastSyncedAt = t
-	}
-
-	return h.syncer.Handle(ctx, calendarsync.SyncCommand{
-		Email:        msg.Email,
-		CalendarID:   msg.CalendarID,
-		SyncToken:    msg.SyncToken,
-		LastSyncedAt: lastSyncedAt,
-	})
+	return h.syncer.Handle(ctx, &sync)
 }

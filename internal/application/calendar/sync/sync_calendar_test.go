@@ -79,11 +79,8 @@ func defaultTokenRepo() *mockTokenRepository {
 	}
 }
 
-func baseCmd() SyncCommand {
-	return SyncCommand{
-		Email:      "agent@example.com",
-		CalendarID: "cal123",
-	}
+func baseCmd() *domain.Sync {
+	return domain.NewSync("agent@example.com", "cal123", "", time.Time{})
 }
 
 // -- tests --
@@ -96,7 +93,7 @@ func TestSyncCalendar_Handle(t *testing.T) {
 
 	tests := []struct {
 		name               string
-		cmd                SyncCommand
+		cmd                *domain.Sync
 		tokenRepo          *mockTokenRepository
 		clientResponses    []syncEventsResponse
 		publishErr         error
@@ -130,12 +127,7 @@ func TestSyncCalendar_Handle(t *testing.T) {
 		},
 		{
 			name: "with syncToken: passes it through and uses lastSyncedAt as timeMin",
-			cmd: SyncCommand{
-				Email:        "agent@example.com",
-				CalendarID:   "cal123",
-				SyncToken:    "existing-tok",
-				LastSyncedAt: fixedTime.Add(-48 * time.Hour),
-			},
+			cmd:  domain.NewSync("agent@example.com", "cal123", "existing-tok", fixedTime.Add(-48*time.Hour)),
 			clientResponses: []syncEventsResponse{
 				{syncToken: "updated-tok"},
 			},
@@ -147,11 +139,7 @@ func TestSyncCalendar_Handle(t *testing.T) {
 		},
 		{
 			name: "with lastSyncedAt and no syncToken: uses lastSyncedAt as timeMin",
-			cmd: SyncCommand{
-				Email:        "agent@example.com",
-				CalendarID:   "cal123",
-				LastSyncedAt: fixedTime.Add(-48 * time.Hour),
-			},
+			cmd:  domain.NewSync("agent@example.com", "cal123", "", fixedTime.Add(-48*time.Hour)),
 			clientResponses: []syncEventsResponse{
 				{syncToken: "new-tok"},
 			},
@@ -175,11 +163,7 @@ func TestSyncCalendar_Handle(t *testing.T) {
 		},
 		{
 			name: "expired sync token: retries with empty token and now minus eventBuffer",
-			cmd: SyncCommand{
-				Email:      "agent@example.com",
-				CalendarID: "cal123",
-				SyncToken:  "stale-tok",
-			},
+			cmd:  domain.NewSync("agent@example.com", "cal123", "stale-tok", time.Time{}),
 			clientResponses: []syncEventsResponse{
 				{err: domain.ErrSyncTokenExpired},
 				{events: []domain.Event{anEvent}, syncToken: "fresh-tok"},
@@ -212,11 +196,7 @@ func TestSyncCalendar_Handle(t *testing.T) {
 		},
 		{
 			name: "expired token retry error is returned",
-			cmd: SyncCommand{
-				Email:      "agent@example.com",
-				CalendarID: "cal123",
-				SyncToken:  "stale-tok",
-			},
+			cmd:  domain.NewSync("agent@example.com", "cal123", "stale-tok", time.Time{}),
 			clientResponses: []syncEventsResponse{
 				{err: domain.ErrSyncTokenExpired},
 				{err: errors.New("retry failed")},

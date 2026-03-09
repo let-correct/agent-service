@@ -12,13 +12,6 @@ import (
 
 const eventBuffer = 24 * time.Hour
 
-type SyncCommand struct {
-	Email        string
-	CalendarID   string
-	SyncToken    string
-	LastSyncedAt time.Time
-}
-
 type calendarClient interface {
 	SyncEvents(ctx context.Context, email, accessToken, calendarID, syncToken string, lastSyncedAt time.Time) ([]domain.Event, string, error)
 }
@@ -53,22 +46,22 @@ func NewSyncCalendar(client calendarClient, publisher eventPublisher, syncs sync
 	}
 }
 
-func (s *SyncCalendar) Handle(ctx context.Context, cmd SyncCommand) error {
-	token, err := s.tokens.FindByEmail(ctx, cmd.Email)
+func (s *SyncCalendar) Handle(ctx context.Context, syncState *domain.Sync) error {
+	token, err := s.tokens.FindByEmail(ctx, syncState.Email())
 	if err != nil {
 		return fmt.Errorf("find token: %w", err)
 	}
 
 	from := s.pullEventsFromTime()
-	pullEventsFrom := cmd.LastSyncedAt
-	if cmd.SyncToken == "" && pullEventsFrom.IsZero() {
+	pullEventsFrom := syncState.LastSyncedAt()
+	if syncState.SyncToken() == "" && pullEventsFrom.IsZero() {
 		pullEventsFrom = from
 	}
 
-	events, newSyncToken, err := s.client.SyncEvents(ctx, cmd.Email, token.AccessToken(), cmd.CalendarID, cmd.SyncToken, pullEventsFrom)
+	events, newSyncToken, err := s.client.SyncEvents(ctx, syncState.Email(), token.AccessToken(), syncState.CalendarID(), syncState.SyncToken(), pullEventsFrom)
 	if errors.Is(err, domain.ErrSyncTokenExpired) {
 		// Sync token expired: fall back to a full re-sync from eventBuffer ago.
-		events, newSyncToken, err = s.client.SyncEvents(ctx, cmd.Email, token.AccessToken(), cmd.CalendarID, "", from)
+		events, newSyncToken, err = s.client.SyncEvents(ctx, syncState.Email(), token.AccessToken(), syncState.CalendarID(), "", from)
 	}
 	if err != nil {
 		return err
@@ -80,7 +73,7 @@ func (s *SyncCalendar) Handle(ctx context.Context, cmd SyncCommand) error {
 		}
 	}
 
-	return s.syncs.Save(ctx, domain.NewSync(cmd.Email, cmd.CalendarID, newSyncToken, s.now().UTC()))
+	return s.syncs.Save(ctx, domain.NewSync(syncState.Email(), syncState.CalendarID(), newSyncToken, s.now().UTC()))
 }
 
 func (s *SyncCalendar) pullEventsFromTime() time.Time {

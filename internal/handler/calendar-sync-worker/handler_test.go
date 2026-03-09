@@ -9,15 +9,15 @@ import (
 	"time"
 
 	"github.com/aws/aws-lambda-go/events"
-	calendarsync "github.com/troysnowden/agent-service/internal/application/calendar/sync"
+	domain "github.com/troysnowden/agent-service/internal/domain/calendar/sync"
 )
 
 type mockCalendarSyncer struct {
-	calledWith []calendarsync.SyncCommand
+	calledWith []*domain.Sync
 	err        error
 }
 
-func (m *mockCalendarSyncer) Handle(_ context.Context, cmd calendarsync.SyncCommand) error {
+func (m *mockCalendarSyncer) Handle(_ context.Context, cmd *domain.Sync) error {
 	m.calledWith = append(m.calledWith, cmd)
 	return m.err
 }
@@ -36,7 +36,7 @@ func TestHandle(t *testing.T) {
 		records           []events.SQSMessage
 		syncerErr         error
 		wantBatchFailures []string
-		wantSyncCommands  []calendarsync.SyncCommand
+		wantSyncCommands  []*domain.Sync
 	}{
 		{
 			name:    "empty batch returns no failures",
@@ -47,13 +47,8 @@ func TestHandle(t *testing.T) {
 			records: []events.SQSMessage{
 				sqsRecord("msg-1", `{"email":"agent@example.com","calendar_id":"cal123","sync_token":"tok-abc","last_synced_at":"2024-01-15T12:00:00Z"}`),
 			},
-			wantSyncCommands: []calendarsync.SyncCommand{
-				{
-					Email:        "agent@example.com",
-					CalendarID:   "cal123",
-					SyncToken:    "tok-abc",
-					LastSyncedAt: fixedTime,
-				},
+			wantSyncCommands: []*domain.Sync{
+				domain.NewSync("agent@example.com", "cal123", "tok-abc", fixedTime),
 			},
 		},
 		{
@@ -61,8 +56,8 @@ func TestHandle(t *testing.T) {
 			records: []events.SQSMessage{
 				sqsRecord("msg-1", `{"email":"agent@example.com","calendar_id":"cal123"}`),
 			},
-			wantSyncCommands: []calendarsync.SyncCommand{
-				{Email: "agent@example.com", CalendarID: "cal123"},
+			wantSyncCommands: []*domain.Sync{
+				domain.NewSync("agent@example.com", "cal123", "", time.Time{}),
 			},
 		},
 		{
@@ -86,8 +81,8 @@ func TestHandle(t *testing.T) {
 			},
 			syncerErr:         errors.New("sync failed"),
 			wantBatchFailures: []string{"msg-1"},
-			wantSyncCommands: []calendarsync.SyncCommand{
-				{Email: "agent@example.com", CalendarID: "cal123"},
+			wantSyncCommands: []*domain.Sync{
+				domain.NewSync("agent@example.com", "cal123", "", time.Time{}),
 			},
 		},
 		{
@@ -98,9 +93,9 @@ func TestHandle(t *testing.T) {
 				sqsRecord("msg-3", `{"email":"c@example.com","calendar_id":"cal-c"}`),
 			},
 			wantBatchFailures: []string{"msg-2"},
-			wantSyncCommands: []calendarsync.SyncCommand{
-				{Email: "a@example.com", CalendarID: "cal-a"},
-				{Email: "c@example.com", CalendarID: "cal-c"},
+			wantSyncCommands: []*domain.Sync{
+				domain.NewSync("a@example.com", "cal-a", "", time.Time{}),
+				domain.NewSync("c@example.com", "cal-c", "", time.Time{}),
 			},
 		},
 	}
@@ -130,17 +125,17 @@ func TestHandle(t *testing.T) {
 			}
 			for i, want := range tt.wantSyncCommands {
 				got := syncer.calledWith[i]
-				if got.Email != want.Email {
-					t.Errorf("SyncCommand[%d].Email: want %q, got %q", i, want.Email, got.Email)
+				if got.Email() != want.Email() {
+					t.Errorf("SyncCommand[%d].Email: want %q, got %q", i, want.Email(), got.Email())
 				}
-				if got.CalendarID != want.CalendarID {
-					t.Errorf("SyncCommand[%d].CalendarID: want %q, got %q", i, want.CalendarID, got.CalendarID)
+				if got.CalendarID() != want.CalendarID() {
+					t.Errorf("SyncCommand[%d].CalendarID: want %q, got %q", i, want.CalendarID(), got.CalendarID())
 				}
-				if got.SyncToken != want.SyncToken {
-					t.Errorf("SyncCommand[%d].SyncToken: want %q, got %q", i, want.SyncToken, got.SyncToken)
+				if got.SyncToken() != want.SyncToken() {
+					t.Errorf("SyncCommand[%d].SyncToken: want %q, got %q", i, want.SyncToken(), got.SyncToken())
 				}
-				if !got.LastSyncedAt.Equal(want.LastSyncedAt) {
-					t.Errorf("SyncCommand[%d].LastSyncedAt: want %v, got %v", i, want.LastSyncedAt, got.LastSyncedAt)
+				if !got.LastSyncedAt().Equal(want.LastSyncedAt()) {
+					t.Errorf("SyncCommand[%d].LastSyncedAt: want %v, got %v", i, want.LastSyncedAt(), got.LastSyncedAt())
 				}
 			}
 		})

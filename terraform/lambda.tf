@@ -157,10 +157,6 @@ resource "aws_lambda_event_source_mapping" "calendar_sync_worker_sqs" {
   function_response_types            = ["ReportBatchItemFailures"]
 }
 
-###############################################################################
-# IAM — Calendar Sync Worker Execution Role
-###############################################################################
-
 data "aws_iam_policy_document" "calendar_sync_worker" {
   statement {
     effect  = "Allow"

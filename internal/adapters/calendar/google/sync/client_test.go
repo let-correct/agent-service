@@ -79,13 +79,8 @@ func TestSyncEvents(t *testing.T) {
 			wantTimeMin:  fixedTime.Add(-48 * time.Hour),
 		},
 		{
-			name:        "with neither syncToken nor lastSyncedAt, uses now minus eventBuffer",
-			svc:         &mockCalendarService{},
-			wantTimeMin: fixedTime.Add(-eventBuffer).UTC(),
-		},
-		{
 			name:        "confirmed event is mapped with DetailTypeCreated",
-			wantTimeMin: fixedTime.Add(-eventBuffer).UTC(),
+			wantTimeMin: time.Time{},
 			svc: &mockCalendarService{
 				items: []*calendar.Event{
 					{
@@ -123,7 +118,7 @@ func TestSyncEvents(t *testing.T) {
 		},
 		{
 			name:        "cancelled event is mapped with DetailTypeCancelled",
-			wantTimeMin: fixedTime.Add(-eventBuffer).UTC(),
+			wantTimeMin: time.Time{},
 			svc: &mockCalendarService{
 				items: []*calendar.Event{
 					{Id: "evt2", Status: "cancelled"},

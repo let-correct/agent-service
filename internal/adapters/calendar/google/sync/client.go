@@ -13,7 +13,6 @@ import (
 const (
 	source        = "agent-service"
 	schemaVersion = "1.0"
-	eventBuffer   = time.Duration(24 * time.Hour)
 )
 
 type Client struct {
@@ -34,12 +33,7 @@ func (c *Client) SyncEvents(ctx context.Context, email, accessToken, calendarID,
 		return nil, "", err
 	}
 
-	timeMin := lastSyncedAt
-	if syncToken == "" && timeMin.IsZero() {
-		timeMin = c.now().Add(-eventBuffer).UTC()
-	}
-
-	items, newSyncToken, err := svc.ListEvents(ctx, calendarID, syncToken, timeMin)
+	items, newSyncToken, err := svc.ListEvents(ctx, calendarID, syncToken, lastSyncedAt)
 	if err != nil {
 		var apiErr *googleapi.Error
 		if errors.As(err, &apiErr) && apiErr.Code == 410 {

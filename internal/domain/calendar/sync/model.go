@@ -30,6 +30,23 @@ func (s *Sync) CalendarID() string      { return s.calendarID }
 func (s *Sync) SyncToken() string       { return s.syncToken }
 func (s *Sync) LastSyncedAt() time.Time { return s.lastSyncedAt }
 
+func (s *Sync) MarshalJSON() ([]byte, error) {
+	raw := struct {
+		Email        string `json:"email"`
+		CalendarID   string `json:"calendar_id"`
+		SyncToken    string `json:"sync_token"`
+		LastSyncedAt string `json:"last_synced_at"`
+	}{
+		Email:      s.email,
+		CalendarID: s.calendarID,
+		SyncToken:  s.syncToken,
+	}
+	if !s.lastSyncedAt.IsZero() {
+		raw.LastSyncedAt = s.lastSyncedAt.UTC().Format(time.RFC3339)
+	}
+	return json.Marshal(raw)
+}
+
 // called by json.Unmarshal
 func (s *Sync) UnmarshalJSON(data []byte) error {
 	var raw struct {

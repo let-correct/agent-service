@@ -227,6 +227,92 @@ resource "aws_cloudwatch_log_group" "calendar_sync_worker" {
 }
 
 ###############################################################################
+# Calendar Sync Dispatcher Lambda Function
+###############################################################################
+
+resource "aws_lambda_function" "calendar_sync_dispatcher" {
+  function_name = "calendar-sync-dispatcher"
+  role          = aws_iam_role.calendar_sync_dispatcher.arn
+
+  package_type  = "Image"
+  image_uri     = "${aws_ecr_repository.calendar_sync_dispatcher_ecr.repository_url}:latest"
+  architectures = ["arm64"]
+
+  memory_size = 128
+  timeout     = 30
+
+  environment {
+    variables = {
+      LOG_LEVEL       = var.log_level
+      SYNC_TABLE_NAME = aws_dynamodb_table.google_calendar_sync_tokens.name
+      SQS_QUEUE_URL   = aws_sqs_queue.calendar_sync_worker.url
+    }
+  }
+
+  logging_config {
+    log_format = "JSON"
+    log_group  = aws_cloudwatch_log_group.calendar_sync_dispatcher.name
+  }
+
+  tags = var.tags
+
+  depends_on = [
+    aws_iam_role_policy_attachment.calendar_sync_dispatcher_basic_execution,
+    aws_cloudwatch_log_group.calendar_sync_dispatcher,
+  ]
+}
+
+data "aws_iam_policy_document" "calendar_sync_dispatcher" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["lambda.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "calendar_sync_dispatcher" {
+  name               = "calendar-sync-dispatcher-execution-role"
+  assume_role_policy = data.aws_iam_policy_document.calendar_sync_dispatcher.json
+  tags               = var.tags
+}
+
+resource "aws_iam_role_policy_attachment" "calendar_sync_dispatcher_basic_execution" {
+  role       = aws_iam_role.calendar_sync_dispatcher.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
+resource "aws_iam_role_policy" "calendar_sync_dispatcher_permissions" {
+  name = "calendar-sync-dispatcher-permissions"
+  role = aws_iam_role.calendar_sync_dispatcher.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:Scan"]
+        Resource = aws_dynamodb_table.google_calendar_sync_tokens.arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["sqs:SendMessage"]
+        Resource = aws_sqs_queue.calendar_sync_worker.arn
+      },
+    ]
+  })
+}
+
+resource "aws_cloudwatch_log_group" "calendar_sync_dispatcher" {
+  name              = "/aws/lambda/calendar_sync_dispatcher"
+  retention_in_days = 30
+  tags              = var.tags
+}
+
+###############################################################################
 # Cognito Pre-Token Generation Lambda
 ###############################################################################
 

@@ -22,6 +22,17 @@ func LoadAuth() (AuthConfig, error) {
 	return cfg, env.Parse(&cfg)
 }
 
+type CalendarSyncDispatcherConfig struct {
+	LogLevel      string `env:"LOG_LEVEL"                 envDefault:"INFO"`
+	SyncTableName string `env:"SYNC_TABLE_NAME,required"`
+	SQSQueueURL   string `env:"SQS_QUEUE_URL,required"`
+}
+
+func LoadCalendarSyncDispatcher() (CalendarSyncDispatcherConfig, error) {
+	var cfg CalendarSyncDispatcherConfig
+	return cfg, env.Parse(&cfg)
+}
+
 type CalendarSyncWorkerConfig struct {
 	LogLevel       string `env:"LOG_LEVEL"         envDefault:"INFO"`
 	TokenTableName string `env:"TOKEN_TABLE_NAME,required"`

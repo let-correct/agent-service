@@ -137,7 +137,49 @@ sequenceDiagram
 
 ---
 
+### 5. Calendar Sync (Scheduled Fan-Out)
+
+An EventBridge Scheduler triggers the dispatcher Lambda on a configurable interval. It reads all agents from DynamoDB and enqueues one SQS message per agent. The worker Lambda processes each message independently — fetching a fresh OAuth token, syncing Google Calendar, and publishing appointment events to the EventBridge event bus.
+
+```mermaid
+sequenceDiagram
+    participant Scheduler as EventBridge Scheduler
+    participant Dispatcher as Calendar Sync Dispatcher Lambda
+    participant DynamoDB
+    participant SQS
+    participant Worker as Calendar Sync Worker Lambda
+    participant Google as Google Calendar
+    participant EventBridge
+
+    Scheduler->>Dispatcher: Invoke on schedule
+    Dispatcher->>DynamoDB: Read all agent sync states
+    loop For each agent
+        Dispatcher->>SQS: Enqueue sync job
+    end
+
+    SQS->>Worker: Invoke (one job per agent)
+    Worker->>DynamoDB: Fetch OAuth token
+    Worker->>Google: Fetch calendar events
+    Google-->>Worker: Events
+    Worker->>EventBridge: Publish appointment events
+    Worker->>DynamoDB: Save updated sync state
+```
+
+---
+
 ## Lambdas
+
+### Calendar Sync Dispatcher Lambda (`cmd/calendar-sync-dispatcher`)
+
+Triggered by EventBridge Scheduler on a configurable interval. Reads all agent sync states from DynamoDB and enqueues one SQS message per agent for the worker to process.
+
+---
+
+### Calendar Sync Worker Lambda (`cmd/calendar-sync-worker`)
+
+Triggered by SQS (batch size 1, one invocation per agent). Fetches a fresh OAuth token, syncs the agent's Google Calendar, publishes appointment events to the EventBridge event bus, and saves the updated sync state to DynamoDB. Failed messages are retried up to three times before being moved to the dead-letter queue.
+
+---
 
 ### Cognito Pre-Token Generation Lambda (`cmd/cognito-pre-token-gen`)
 

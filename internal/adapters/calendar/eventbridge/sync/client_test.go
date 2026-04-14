@@ -2,6 +2,7 @@ package calendarsync
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
@@ -85,14 +86,30 @@ func TestPublish(t *testing.T) {
 			wantErrSubstr: "put events",
 		},
 		{
-			name:   "single event is published successfully",
+			name:   "single event is published successfully with full event as detail",
 			events: []domain.Event{sampleEvent(domain.DetailTypeCreated, source, "evt1")},
 			setupMock: func(m *mockEventbridgeClient) {
 				m.On("PutEvents", mock.Anything, mock.MatchedBy(func(input *eventbridge.PutEventsInput) bool {
-					return len(input.Entries) == 1 &&
-						*input.Entries[0].DetailType == string(domain.DetailTypeCreated) &&
-						*input.Entries[0].EventBusName == busName &&
-						*input.Entries[0].Source == source
+					if len(input.Entries) != 1 {
+						return false
+					}
+					entry := input.Entries[0]
+					if *entry.DetailType != string(domain.DetailTypeCreated) {
+						return false
+					}
+					if *entry.EventBusName != busName {
+						return false
+					}
+					if *entry.Source != source {
+						return false
+					}
+					var published domain.Event
+					if err := json.Unmarshal([]byte(*entry.Detail), &published); err != nil {
+						return false
+					}
+					return published.Metadata.CorrelationID == "evt1" &&
+						published.Metadata.Source == source &&
+						published.Payload.AgentEmail == "user@example.com"
 				})).Return(&eventbridge.PutEventsOutput{
 					Entries: []ebtypes.PutEventsResultEntry{{EventId: aws.String("id-1")}},
 				}, nil)

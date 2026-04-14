@@ -36,9 +36,9 @@ func (e *Eventbridge) Publish(ctx context.Context, events []domain.Event) error 
 
 	entries := make([]types.PutEventsRequestEntry, 0, len(events))
 	for _, event := range events {
-		detail, err := json.Marshal(event.Payload)
+		detail, err := json.Marshal(event)
 		if err != nil {
-			return fmt.Errorf("marshal event payload: %w", err)
+			return fmt.Errorf("marshal event: %w", err)
 		}
 		entries = append(entries, types.PutEventsRequestEntry{
 			Detail:       aws.String(string(detail)),

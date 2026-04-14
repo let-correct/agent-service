@@ -35,6 +35,8 @@ func newTestClient(svc *mockCalendarService, now func() time.Time) *Client {
 	}
 }
 
+const validDescription = "<b>Booked by</b>\nJohn Smith\njohn@example.com\n0821234567"
+
 func TestSyncEvents(t *testing.T) {
 	fixedTime := time.Date(2024, 1, 15, 12, 0, 0, 0, time.UTC)
 	fixedNow := func() time.Time { return fixedTime }
@@ -79,18 +81,39 @@ func TestSyncEvents(t *testing.T) {
 			wantTimeMin:  fixedTime.Add(-48 * time.Hour),
 		},
 		{
-			name:        "confirmed event is mapped with DetailTypeCreated",
-			wantTimeMin: time.Time{},
+			name: "event without booked-by description prefix is filtered out",
+			svc: &mockCalendarService{
+				items: []*calendar.Event{
+					{Id: "evt1", Summary: "Team Meeting", Status: "confirmed", Description: "Some other description"},
+				},
+				newSyncToken: "tok",
+			},
+			wantSyncToken: "tok",
+			wantEvents:    []calendarsync.Event{},
+		},
+		{
+			name: "event with empty description is filtered out",
+			svc: &mockCalendarService{
+				items: []*calendar.Event{
+					{Id: "evt1", Summary: "Viewing: 10 Main St", Status: "confirmed", Description: ""},
+				},
+				newSyncToken: "tok",
+			},
+			wantSyncToken: "tok",
+			wantEvents:    []calendarsync.Event{},
+		},
+		{
+			name: "confirmed viewing appointment is mapped with DetailTypeCreated",
 			svc: &mockCalendarService{
 				items: []*calendar.Event{
 					{
-						Id:      "evt1",
-						Summary: "Standup",
-						Status:  "confirmed",
-						Attendees: []*calendar.EventAttendee{
-							{Email: "a@example.com"},
-							{Email: "b@example.com"},
-						},
+						Id:          "evt1",
+						Summary:     "Viewing: 10 Main St",
+						Status:      "confirmed",
+						Description: validDescription,
+						Location:    "10 Main St, Dublin",
+						Start:       &calendar.EventDateTime{DateTime: "2024-01-20T10:00:00Z"},
+						End:         &calendar.EventDateTime{DateTime: "2024-01-20T10:30:00Z"},
 					},
 				},
 				newSyncToken: "tok",
@@ -106,22 +129,29 @@ func TestSyncEvents(t *testing.T) {
 						CorrelationID: "evt1",
 					},
 					Payload: calendarsync.Appointment{
-						Email:      "user@example.com",
-						EventID:    "evt1",
-						CalendarID: "cal123",
-						Summary:    "Standup",
-						Status:     "confirmed",
-						Attendees:  []string{"a@example.com", "b@example.com"},
+						AgentEmail: "user@example.com",
+						Location:   "10 Main St, Dublin",
+						Start:      time.Date(2024, 1, 20, 10, 0, 0, 0, time.UTC),
+						End:        time.Date(2024, 1, 20, 10, 30, 0, 0, time.UTC),
+						Attendee: calendarsync.Attendee{
+							Name:  "John Smith",
+							Email: "john@example.com",
+							Phone: "0821234567",
+						},
 					},
 				},
 			},
 		},
 		{
-			name:        "cancelled event is mapped with DetailTypeCancelled",
-			wantTimeMin: time.Time{},
+			name: "cancelled viewing appointment is mapped with DetailTypeCancelled",
 			svc: &mockCalendarService{
 				items: []*calendar.Event{
-					{Id: "evt2", Status: "cancelled"},
+					{
+						Id:          "evt2",
+						Summary:     "Viewing: 10 Main St",
+						Status:      "cancelled",
+						Description: validDescription,
+					},
 				},
 			},
 			wantEvents: []calendarsync.Event{
@@ -134,12 +164,98 @@ func TestSyncEvents(t *testing.T) {
 						CorrelationID: "evt2",
 					},
 					Payload: calendarsync.Appointment{
-						Email:      "user@example.com",
-						EventID:    "evt2",
-						CalendarID: "cal123",
-						Status:     "cancelled",
-						Attendees:  []string{},
+						AgentEmail: "user@example.com",
+						Attendee: calendarsync.Attendee{
+							Name:  "John Smith",
+							Email: "john@example.com",
+							Phone: "0821234567",
+						},
 					},
+				},
+			},
+		},
+		{
+			name: "description with only name still emits event with partial attendee",
+			svc: &mockCalendarService{
+				items: []*calendar.Event{
+					{
+						Id:          "evt3",
+						Summary:     "Viewing: 5 Oak Ave",
+						Status:      "confirmed",
+						Description: "<b>Booked by</b>\nJane Doe",
+					},
+				},
+			},
+			wantEvents: []calendarsync.Event{
+				{
+					DetailType: calendarsync.DetailTypeCreated,
+					Metadata: calendarsync.EventMetadata{
+						Timestamp:     fixedTime.UTC(),
+						Source:        source,
+						SchemaVersion: schemaVersion,
+						CorrelationID: "evt3",
+					},
+					Payload: calendarsync.Appointment{
+						AgentEmail: "user@example.com",
+						Attendee: calendarsync.Attendee{
+							Name: "Jane Doe",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "description with name and email but no phone still emits event",
+			svc: &mockCalendarService{
+				items: []*calendar.Event{
+					{
+						Id:          "evt4",
+						Summary:     "Viewing: 5 Oak Ave",
+						Status:      "confirmed",
+						Description: "<b>Booked by</b>\nJane Doe\njane@example.com",
+					},
+				},
+			},
+			wantEvents: []calendarsync.Event{
+				{
+					DetailType: calendarsync.DetailTypeCreated,
+					Metadata: calendarsync.EventMetadata{
+						Timestamp:     fixedTime.UTC(),
+						Source:        source,
+						SchemaVersion: schemaVersion,
+						CorrelationID: "evt4",
+					},
+					Payload: calendarsync.Appointment{
+						AgentEmail: "user@example.com",
+						Attendee: calendarsync.Attendee{
+							Name:  "Jane Doe",
+							Email: "jane@example.com",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "mixed events: only viewing appointments are emitted",
+			svc: &mockCalendarService{
+				items: []*calendar.Event{
+					{Id: "evt1", Summary: "Viewing: 10 Main St", Status: "confirmed", Description: validDescription},
+					{Id: "evt2", Summary: "Team Meeting", Status: "confirmed", Description: "Agenda: ..."},
+					{Id: "evt3", Summary: "Viewing: 5 Oak Ave", Status: "confirmed", Description: validDescription},
+				},
+				newSyncToken: "tok",
+			},
+			wantSyncToken: "tok",
+			wantEvents: []calendarsync.Event{
+				{
+					DetailType: calendarsync.DetailTypeCreated,
+					Metadata:   calendarsync.EventMetadata{Timestamp: fixedTime.UTC(), Source: source, SchemaVersion: schemaVersion, CorrelationID: "evt1"},
+					Payload:    calendarsync.Appointment{AgentEmail: "user@example.com", Attendee: calendarsync.Attendee{Name: "John Smith", Email: "john@example.com", Phone: "0821234567"}},
+				},
+				{
+					DetailType: calendarsync.DetailTypeCreated,
+					Metadata:   calendarsync.EventMetadata{Timestamp: fixedTime.UTC(), Source: source, SchemaVersion: schemaVersion, CorrelationID: "evt3"},
+					Payload:    calendarsync.Appointment{AgentEmail: "user@example.com", Attendee: calendarsync.Attendee{Name: "John Smith", Email: "john@example.com", Phone: "0821234567"}},
 				},
 			},
 		},
@@ -202,25 +318,20 @@ func TestSyncEvents(t *testing.T) {
 					t.Errorf("events[%d].Metadata.CorrelationID: want %q, got %q", i, want.Metadata.CorrelationID, got.Metadata.CorrelationID)
 				}
 				p, wp := got.Payload, want.Payload
-				if p.Email != wp.Email {
-					t.Errorf("events[%d].Payload.Email: want %q, got %q", i, wp.Email, p.Email)
+				if p.AgentEmail != wp.AgentEmail {
+					t.Errorf("events[%d].Payload.AgentEmail: want %q, got %q", i, wp.AgentEmail, p.AgentEmail)
 				}
-				if p.EventID != wp.EventID {
-					t.Errorf("events[%d].Payload.EventID: want %q, got %q", i, wp.EventID, p.EventID)
+				if p.Location != wp.Location {
+					t.Errorf("events[%d].Payload.Location: want %q, got %q", i, wp.Location, p.Location)
 				}
-				if p.CalendarID != wp.CalendarID {
-					t.Errorf("events[%d].Payload.CalendarID: want %q, got %q", i, wp.CalendarID, p.CalendarID)
+				if !p.Start.Equal(wp.Start) {
+					t.Errorf("events[%d].Payload.Start: want %v, got %v", i, wp.Start, p.Start)
 				}
-				if p.Status != wp.Status {
-					t.Errorf("events[%d].Payload.Status: want %q, got %q", i, wp.Status, p.Status)
+				if !p.End.Equal(wp.End) {
+					t.Errorf("events[%d].Payload.End: want %v, got %v", i, wp.End, p.End)
 				}
-				if len(p.Attendees) != len(wp.Attendees) {
-					t.Fatalf("events[%d].Payload.Attendees count: want %d, got %d", i, len(wp.Attendees), len(p.Attendees))
-				}
-				for j, email := range wp.Attendees {
-					if p.Attendees[j] != email {
-						t.Errorf("events[%d].Payload.Attendees[%d]: want %q, got %q", i, j, email, p.Attendees[j])
-					}
+				if p.Attendee != wp.Attendee {
+					t.Errorf("events[%d].Payload.Attendee: want %+v, got %+v", i, wp.Attendee, p.Attendee)
 				}
 			}
 		})

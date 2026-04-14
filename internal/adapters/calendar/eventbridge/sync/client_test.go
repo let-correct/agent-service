@@ -47,12 +47,13 @@ func sampleEvent(detailType domain.DetailType, source, correlationID string) dom
 			CorrelationID: correlationID,
 		},
 		Payload: domain.Appointment{
-			Email:      "user@example.com",
-			EventID:    correlationID,
-			CalendarID: "cal123",
-			Summary:    "Standup",
-			Status:     "confirmed",
-			Attendees:  []string{"a@example.com", "b@example.com"},
+			AgentEmail: "user@example.com",
+			Location:   "10 Main St, Dublin",
+			Attendee: domain.Attendee{
+				Name:  "John Smith",
+				Email: "john@example.com",
+				Phone: "0821234567",
+			},
 		},
 	}
 }

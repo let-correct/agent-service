@@ -16,16 +16,18 @@ type EventMetadata struct {
 	CorrelationID string    `json:"correlationId"`
 }
 
+type Attendee struct {
+	Name  string `json:"name"`
+	Email string `json:"email"`
+	Phone string `json:"phone"`
+}
+
 type Appointment struct {
-	Email       string    `json:"email"`
-	EventID     string    `json:"eventId"`
-	CalendarID  string    `json:"calendarId"`
-	Summary     string    `json:"summary"`
-	Description string    `json:"description"`
-	Start       time.Time `json:"start"`
-	End         time.Time `json:"end"`
-	Attendees   []string  `json:"attendees"`
-	Status      string    `json:"status"`
+	AgentEmail string    `json:"agentEmail"`
+	Location   string    `json:"location"`
+	Start      time.Time `json:"start"`
+	End        time.Time `json:"end"`
+	Attendee   Attendee  `json:"attendee"`
 }
 
 type Event struct {

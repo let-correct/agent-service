@@ -130,8 +130,6 @@ func TestSyncEvents(t *testing.T) {
 					},
 					Payload: calendarsync.Appointment{
 						AgentEmail: "user@example.com",
-	
-
 						Location:   "10 Main St, Dublin",
 						Start:      time.Date(2024, 1, 20, 10, 0, 0, 0, time.UTC),
 						End:        time.Date(2024, 1, 20, 10, 30, 0, 0, time.UTC),
@@ -167,7 +165,6 @@ func TestSyncEvents(t *testing.T) {
 					},
 					Payload: calendarsync.Appointment{
 						AgentEmail: "user@example.com",
-
 						Attendee: calendarsync.Attendee{
 							Name:  "John Smith",
 							Email: "john@example.com",
@@ -200,7 +197,6 @@ func TestSyncEvents(t *testing.T) {
 					},
 					Payload: calendarsync.Appointment{
 						AgentEmail: "user@example.com",
-
 						Attendee: calendarsync.Attendee{
 							Name: "Jane Doe",
 						},
@@ -231,7 +227,6 @@ func TestSyncEvents(t *testing.T) {
 					},
 					Payload: calendarsync.Appointment{
 						AgentEmail: "user@example.com",
-
 						Attendee: calendarsync.Attendee{
 							Name:  "Jane Doe",
 							Email: "jane@example.com",

@@ -48,8 +48,6 @@ func sampleEvent(detailType domain.DetailType, source, correlationID string) dom
 		},
 		Payload: domain.Appointment{
 			AgentEmail: "user@example.com",
-
-
 			Location:   "10 Main St, Dublin",
 			Attendee: domain.Attendee{
 				Name:  "John Smith",
